@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # Сервіс бази даних PostgreSQL
+  db:
+    image: postgres:16-alpine
+    container_name: upstudy_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root  # Пароль для прикладу
+      POSTGRES_DB: upstudy_db  # Назва вашої БД
+    ports:
+      - "5432:5432" # Прокидаємо порт назовні, щоб ви могли підключатись з Rider/Terminal
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  # Сервіс pgAdmin (адмінка для БД)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: upstudy_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: root
+    ports:
+      - "5050:80" # Адмінка буде доступна за адресою http://localhost:5050
+    depends_on:
+      - db
+    restart: always
+
+volumes:
+  postgres_data:

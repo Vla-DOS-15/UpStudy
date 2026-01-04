@@ -1,0 +1,6 @@
+@UpStudy_HostAddress = http://localhost:5294
+
+GET {{UpStudy_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
