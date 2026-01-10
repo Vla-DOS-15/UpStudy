@@ -7,6 +7,21 @@ public class AppUser : IdentityUser
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     
-    public string? RefreshToken { get; set; }
-    public DateTime RefreshTokenExpiryTime { get; set; }
+    // Профіль виконавця (необов'язкові поля, заповнюються якщо юзер хоче бути виконавцем)
+    public string? AboutMe { get; set; }
+    public decimal Balance { get; set; } = 0;
+
+    public List<RefreshTokenInfo> RefreshTokens { get; set; } = new();
+
+    // Замовлення, які створив цей юзер
+    public List<Order> ClientOrders { get; set; } = new(); 
+    
+    // Замовлення, які цей юзер виконує
+    public List<Order> ExecutorOrders { get; set; } = new();
+
+    // Готові роботи на продаж
+    public List<ReadyWork> ReadyWorks { get; set; } = new();
+    
+    // Відгуки, які отримав цей користувач
+    public List<Review> Reviews { get; set; } = new();
 }
