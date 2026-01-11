@@ -1,0 +1,127 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using UpStudy.Dtos;
+using UpStudy.Interfaces;
+
+namespace UpStudy.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class OrdersController : ControllerBase
+{
+    private readonly IOrderService _orderService;
+
+    public OrdersController(IOrderService orderService)
+    {
+        _orderService = orderService;
+    }
+
+    [HttpPost]
+    [Authorize]
+    public async Task<IActionResult> CreateOrder([FromForm] CreateOrderDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized("Не вдалося визначити користувача");
+
+        try
+        {
+            var createdOrder = await _orderService.CreateOrderAsync(userId, dto);
+
+            var response = new OrderResponseDto
+            {
+                Id = createdOrder.Id,
+                Title = createdOrder.Title,
+                Description = createdOrder.Description,
+                Price = createdOrder.Price,
+                Status = createdOrder.Status.ToString(),
+                Attachments = createdOrder.Attachments.Select(a => new AttachmentDto
+                {
+                    Id = a.Id,
+                    FilePath = a.FilePath,
+                    OriginalFileName = a.OriginalFileName
+                }).ToList()
+            };
+
+            return CreatedAtAction(nameof(GetOrderById), new { id = response.Id }, response);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Помилка сервера: {ex.Message}");
+        }
+    }
+
+    // Заглушка для CreatedAtAction (реалізуємо пізніше Use Case 1.4/2.2)
+    [HttpGet("{id}")]
+    public IActionResult GetOrderById(Guid id)
+    {
+        return Ok(new { Message = "Метод отримання замовлення ще в розробці", OrderId = id });
+    }
+    
+    // --- 2.1 PUT: Редагування замовлення ---
+    [HttpPut("{id}")]
+    [Authorize]
+    public async Task<IActionResult> UpdateOrder(Guid id, [FromBody] UpdateOrderDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            var updatedOrder = await _orderService.UpdateOrderAsync(id, userId, dto);
+            
+            // Повертаємо оновлені дані. Можна використати OrderResponseDto, якщо він у вас є.
+            return Ok(new { Message = "Замовлення оновлено", OrderId = updatedOrder.Id, Title = updatedOrder.Title });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound("Замовлення не знайдено");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid(); // 403 Forbidden
+        }
+        catch (InvalidOperationException ex) // Порушення бізнес-правил (є ставки або не той статус)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Помилка сервера: {ex.Message}");
+        }
+    }
+
+    // --- 2.2 GET: Список ставок для замовлення ---
+    [HttpGet("{id}/proposals")]
+    [Authorize]
+    public async Task<IActionResult> GetOrderProposals(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            var proposals = await _orderService.GetProposalsForOrderAsync(id, userId);
+            return Ok(proposals);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound("Замовлення не знайдено");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid("Ви не маєте права переглядати ставки до цього замовлення.");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+}
