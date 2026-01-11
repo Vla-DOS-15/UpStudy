@@ -9,8 +9,8 @@ public class AppUser : IdentityUser
     
     // Профіль виконавця (необов'язкові поля, заповнюються якщо юзер хоче бути виконавцем)
     public string? AboutMe { get; set; }
-    public decimal Balance { get; set; } = 0;
 
+    public Wallet? Wallet { get; set; }
     public List<RefreshTokenInfo> RefreshTokens { get; set; } = new();
 
     // Замовлення, які створив цей юзер
