@@ -3,17 +3,17 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.OpenApi;
+using UpStudy.Interfaces;
 using UpStudy.Models;
 using UpStudy.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. DB Context (PostgreSQL)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// 2. Identity
 builder.Services.AddIdentity<AppUser, IdentityRole>(options => 
     {
         options.Password.RequireDigit = true;
@@ -23,18 +23,17 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
-// 3. JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var key = Encoding.ASCII.GetBytes(jwtSettings["Key"]!);
 
 builder.Services.AddAuthentication(options =>
 {
-    // Вказуємо, що стандартна схема - це Bearer Token, а не Cookies
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
 .AddJwtBearer(options =>
 {
+    options.SaveToken = true; // Зберігати токен для доступу в контролері, якщо треба
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -43,18 +42,40 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = jwtSettings["Issuer"],
         ValidAudience = jwtSettings["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(key)
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ClockSkew = TimeSpan.Zero // Прибрати затримку часу (за замовчуванням 5 хв)
     };
 });
 
-// Реєстрація вашого сервісу авторизації
+// Реєстрація сервісів
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "JWT Authorization header using the Bearer scheme."
+    });
 
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("bearer", document)] = []
+    });
+});
 var app = builder.Build();
+
+// --- ВАЖЛИВО: Застосування міграцій при старті (Опціонально) ---
+// using (var scope = app.Services.CreateScope())
+// {
+//     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+//     db.Database.Migrate();
+// }
 
 if (app.Environment.IsDevelopment())
 {
@@ -63,8 +84,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-// Важливо: Authentication перед Authorization
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 

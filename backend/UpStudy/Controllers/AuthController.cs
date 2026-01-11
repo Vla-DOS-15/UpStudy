@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using UpStudy.Dtos; // Переконайтеся, що DTO лежать тут
-using UpStudy.Services;
+using UpStudy.Dtos;
+using UpStudy.Interfaces;
 
 namespace UpStudy.Controllers;
 

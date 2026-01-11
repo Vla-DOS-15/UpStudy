@@ -6,30 +6,27 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using UpStudy.Dtos;
+using UpStudy.Interfaces;
 using UpStudy.Models;
 
 namespace UpStudy.Services;
-
-public interface IAuthService
-{
-    Task<AuthResponseDto> RegisterAsync(RegisterDto model);
-    Task<AuthResponseDto> LoginAsync(LoginDto model);
-    Task<AuthResponseDto> GoogleLoginAsync(string googleIdToken);
-    Task<bool> ChangePasswordAsync(string userId, string currentPassword, string newPassword);
-}
 
 public class AuthService : IAuthService
 {
     private readonly UserManager<AppUser> _userManager;
     private readonly IConfiguration _configuration;
+    private readonly ApplicationDbContext _context;
 
-    public AuthService(UserManager<AppUser> userManager, IConfiguration configuration)
+    public AuthService(
+        UserManager<AppUser> userManager, 
+        IConfiguration configuration,
+        ApplicationDbContext context)
     {
         _userManager = userManager;
         _configuration = configuration;
+        _context = context;
     }
 
-    // --- РЕЄСТРАЦІЯ ---
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto model)
     {
         var userExists = await _userManager.FindByEmailAsync(model.Email);
@@ -41,7 +38,7 @@ public class AuthService : IAuthService
         var user = new AppUser
         {
             Email = model.Email,
-            UserName = model.Email, // Часто username = email
+            UserName = model.Email,
             FirstName = model.FirstName,
             LastName = model.LastName,
             SecurityStamp = Guid.NewGuid().ToString()
@@ -54,21 +51,14 @@ public class AuthService : IAuthService
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));
             return new AuthResponseDto { IsSuccess = false, Message = errors };
         }
+        
+        // Опціонально: Додаємо дефолтну роль
+        // await _userManager.AddToRoleAsync(user, "User");
 
-        var accessToken = GenerateJwtToken(user);
-        var refreshToken = GenerateRefreshToken();
-
-        user.RefreshToken = refreshToken;
-        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
-        await _userManager.UpdateAsync(user);
-
-        return new AuthResponseDto 
-        { 
-            IsSuccess = true, 
-            Message = "Користувача створено і здійснено вхід!",
-            AccessToken = accessToken,
-            RefreshToken = refreshToken 
-        };
+        var authResponse = await GenerateTokensAndSaveAsync(user);
+        authResponse.Message = "Користувача створено успішно!";
+        
+        return authResponse;
     }
 
     // --- ЛОГІН ---
@@ -76,33 +66,15 @@ public class AuthService : IAuthService
     {
         var user = await _userManager.FindByEmailAsync(model.Email);
         
-        // Перевірка: чи існує юзер і чи правильний пароль
         if (user == null || !await _userManager.CheckPasswordAsync(user, model.Password))
         {
             return new AuthResponseDto { IsSuccess = false, Message = "Невірний логін або пароль" };
         }
 
-        // Генеруємо токени
-        var accessToken = GenerateJwtToken(user);
-        var refreshToken = GenerateRefreshToken();
-
-        // Зберігаємо Refresh Token у базу
-        user.RefreshToken = refreshToken;
-        // Час життя Refresh Token (наприклад, 7 днів)
-        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
-        
-        await _userManager.UpdateAsync(user);
-
-        return new AuthResponseDto
-        {
-            IsSuccess = true,
-            AccessToken = accessToken,
-            RefreshToken = refreshToken,
-            Message = "Успішний вхід"
-        };
+        return await GenerateTokensAndSaveAsync(user);
     }
 
-    // --- GOOGLE LOGIN (Скорочено для прикладу) ---
+    // --- GOOGLE LOGIN ---
     public async Task<AuthResponseDto> GoogleLoginAsync(string googleIdToken)
     {
         try
@@ -118,24 +90,17 @@ public class AuthService : IAuthService
                     UserName = payload.Email,
                     FirstName = payload.GivenName,
                     LastName = payload.FamilyName,
-                    EmailConfirmed = true
+                    EmailConfirmed = true,
+                    SecurityStamp = Guid.NewGuid().ToString()
                 };
-                await _userManager.CreateAsync(user);
+                var createResult = await _userManager.CreateAsync(user);
+                if (!createResult.Succeeded)
+                    return new AuthResponseDto { IsSuccess = false, Message = "Не вдалося створити користувача через Google" };
+                
+                // await _userManager.AddToRoleAsync(user, "User");
             }
 
-            var accessToken = GenerateJwtToken(user);
-            var refreshToken = GenerateRefreshToken();
-
-            user.RefreshToken = refreshToken;
-            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
-            await _userManager.UpdateAsync(user);
-
-            return new AuthResponseDto 
-            { 
-                IsSuccess = true, 
-                AccessToken = accessToken, 
-                RefreshToken = refreshToken 
-            };
+            return await GenerateTokensAndSaveAsync(user);
         }
         catch
         {
@@ -143,24 +108,84 @@ public class AuthService : IAuthService
         }
     }
 
+    // --- ЗМІНА ПАРОЛЯ ---
+    public async Task<bool> ChangePasswordAsync(string userId, string currentPassword, string newPassword)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return false;
+
+        var result = await _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+        
+        if (result.Succeeded)
+        {
+            // Анулюємо ВСІ Refresh токени користувача, щоб викинути його з усіх пристроїв
+            var userTokens = _context.RefreshTokens.Where(t => t.UserId == userId);
+            _context.RefreshTokens.RemoveRange(userTokens);
+            await _context.SaveChangesAsync();
+            
+            return true;
+        }
+
+        return false;
+    }
+
     // === ПРИВАТНІ ДОПОМІЖНІ МЕТОДИ ===
 
-    private string GenerateJwtToken(AppUser user)
+    // Метод, який генерує обидва токени і зберігає Refresh в БД
+    private async Task<AuthResponseDto> GenerateTokensAndSaveAsync(AppUser user)
+    {
+        // 1. JWT Access Token
+        var accessToken = await GenerateJwtToken(user);
+        
+        // 2. Refresh Token
+        var refreshToken = GenerateRefreshTokenString();
+
+        // 3. Зберігаємо Refresh Token в окрему таблицю
+        var refreshTokenEntity = new RefreshTokenInfo
+        {
+            Token = refreshToken,
+            UserId = user.Id,
+            Expiry = DateTime.UtcNow.AddDays(7), // Живе 7 днів
+            Created = DateTime.UtcNow
+            // CreatedByIp можна додати, якщо прокинути сюди HttpContext
+        };
+
+        await _context.RefreshTokens.AddAsync(refreshTokenEntity);
+        await _context.SaveChangesAsync();
+
+        return new AuthResponseDto
+        {
+            IsSuccess = true,
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            Message = "Успішний вхід"
+        };
+    }
+
+    private async Task<string> GenerateJwtToken(AppUser user)
     {
         var jwtSettings = _configuration.GetSection("JwtSettings");
         var key = Encoding.ASCII.GetBytes(jwtSettings["Key"]!);
+
+        // Отримуємо ролі користувача з БД
+        var userRoles = await _userManager.GetRolesAsync(user);
 
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Email, user.Email!),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()) // Унікальний ID токена
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        // Додаємо ролі в Claims
+        foreach (var role in userRoles)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role));
+        }
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
-            // Access token живе мало (наприклад 15-60 хвилин)
             Expires = DateTime.UtcNow.AddMinutes(double.Parse(jwtSettings["DurationInMinutes"]!)),
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
             Issuer = jwtSettings["Issuer"],
@@ -172,30 +197,11 @@ public class AuthService : IAuthService
         return tokenHandler.WriteToken(token);
     }
 
-    private string GenerateRefreshToken()
+    private string GenerateRefreshTokenString()
     {
         var randomNumber = new byte[32];
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(randomNumber);
         return Convert.ToBase64String(randomNumber);
-    }
-    
-    public async Task<bool> ChangePasswordAsync(string userId, string currentPassword, string newPassword)
-    {
-        var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return false;
-
-        var result = await _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
-        
-        if (result.Succeeded)
-        {
-            // КРИТИЧНО ВАЖЛИВО: Анулюємо Refresh Token при зміні пароля
-            // Це змусить користувача перелогінитись на всіх пристроях, коли стече час життя короткого Access Token
-            user.RefreshToken = null;
-            await _userManager.UpdateAsync(user);
-            return true;
-        }
-
-        return false;
     }
 }

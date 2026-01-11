@@ -3,14 +3,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using UpStudy.Dtos;
+using UpStudy.Interfaces;
 using UpStudy.Models;
-using UpStudy.Services;
 
 namespace UpStudy.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize] // Всі методи цього контролера вимагають авторизації
+[Authorize]
 public class AccountController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -28,13 +28,11 @@ public class AccountController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        // Отримуємо ID з Claims (це надійно, бо токен перевірено)
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         if (userId == null) 
             return Unauthorized();
 
-        // Викликаємо сервіс (переконайтеся, що цей метод реалізований в AuthService)
         var result = await _authService.ChangePasswordAsync(userId, model.CurrentPassword, model.NewPassword);
 
         if (!result)
