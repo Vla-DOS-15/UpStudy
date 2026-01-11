@@ -316,4 +316,52 @@ public class OrderService : IOrderService
         }
         await _context.SaveChangesAsync();
     }
+    
+    
+    public async Task LeaveReviewAsync(Guid orderId, string clientId, CreateReviewDto dto)
+    {
+        // 1. Шукаємо замовлення
+        var order = await _context.Orders
+            .Include(o => o.Review) // Перевіряємо, чи вже є відгук
+            .FirstOrDefaultAsync(o => o.Id == orderId);
+
+        if (order == null) 
+            throw new KeyNotFoundException("Замовлення не знайдено");
+
+        // 2. Валідація прав доступу
+        if (order.ClientId != clientId) 
+            throw new UnauthorizedAccessException("Ви не є замовником цього проєкту.");
+
+        // 3. Валідація статусу (тільки завершені замовлення)
+        if (order.Status != OrderStatus.Completed)
+            throw new InvalidOperationException("Відгук можна залишити тільки після завершення замовлення.");
+
+        // 4. Перевірка на дублікат
+        if (order.Review != null)
+            throw new InvalidOperationException("Ви вже залишили відгук для цього замовлення.");
+
+        // 5. Перевірка наявності виконавця (технічно неможливо завершити без нього, але перевіримо)
+        if (string.IsNullOrEmpty(order.ExecutorId))
+            throw new InvalidOperationException("У замовлення немає виконавця.");
+
+        // 6. Створення відгуку
+        var review = new Review
+        {
+            Id = Guid.NewGuid(),
+            Rating = dto.Rating,
+            Text = dto.Text,
+            CreatedAt = DateTime.UtcNow,
+        
+            OrderId = order.Id,
+            AuthorId = clientId,           // Хто пише (Замовник)
+            TargetUserId = order.ExecutorId // Кому пишуть (Виконавець)
+        };
+
+        _context.Reviews.Add(review);
+    
+        // (Опціонально) Тут можна перерахувати середній рейтинг юзера і зберегти його в AppUser, 
+        // якщо ви додасте поле Rating в таблицю юзерів.
+    
+        await _context.SaveChangesAsync();
+    }
 }

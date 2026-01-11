@@ -179,4 +179,38 @@ public class OrdersController : ControllerBase
         await _orderService.OpenDisputeAsync(id, userId!);
         return Ok(new { Message = "Арбітраж відкрито" });
     }
+    
+    
+    // 2.7 POST: Залишити відгук
+    [HttpPost("{id}/review")]
+    [Authorize]
+    public async Task<IActionResult> LeaveReview(Guid id, [FromBody] CreateReviewDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            await _orderService.LeaveReviewAsync(id, userId, dto);
+            return Ok(new { Message = "Відгук успішно додано." });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound("Замовлення не знайдено");
+        }
+        catch (UnauthorizedAccessException) // 403 Forbidden
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex) // Не той статус або відгук вже є
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 }
