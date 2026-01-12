@@ -12,6 +12,18 @@ public class Order
     public bool IsNegotiable { get; set; }
     public decimal? Price { get; set; }
     
+    // Ціна роботи (те, що отримає виконавець на карту)
+    public decimal ExecutorPrice { get; set; }
+
+    // Комісія платформи (те, що клієнт платить через WayForPay/LiqPay)
+    public decimal PlatformCommission { get; set; }
+    
+    // Чи оплачена комісія платформи?
+    public bool IsCommissionPaid { get; set; } = false;
+    
+    // Зв'язок з транзакціями прямих оплат (див. нижче)
+    public List<DirectPaymentRequest> PaymentRequests { get; set; } = new();
+    
     public DateTime Deadline { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public OrderStatus Status { get; set; } = OrderStatus.New;

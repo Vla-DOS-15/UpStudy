@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using UpStudy.Models;
@@ -11,9 +12,11 @@ using UpStudy.Models;
 namespace UpStudy.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260111190456_RemoveDaysFromProposal")]
+    partial class RemoveDaysFromProposal
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -165,10 +168,6 @@ namespace UpStudy.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
-                    b.Property<string>("BankCardNumber")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text");
@@ -183,9 +182,6 @@ namespace UpStudy.Migrations
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<bool>("IsFop")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("LastName")
                         .IsRequired()
@@ -312,38 +308,6 @@ namespace UpStudy.Migrations
                     b.ToTable("ChatMessages");
                 });
 
-            modelBuilder.Entity("UpStudy.Models.DirectPaymentRequest", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("Comment")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("OrderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("PaidAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderId");
-
-                    b.ToTable("DirectPaymentRequest");
-                });
-
             modelBuilder.Entity("UpStudy.Models.Direction", b =>
                 {
                     b.Property<int>("Id")
@@ -409,17 +373,8 @@ namespace UpStudy.Migrations
                     b.Property<string>("ExecutorId")
                         .HasColumnType("text");
 
-                    b.Property<decimal>("ExecutorPrice")
-                        .HasColumnType("numeric");
-
-                    b.Property<bool>("IsCommissionPaid")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsNegotiable")
                         .HasColumnType("boolean");
-
-                    b.Property<decimal>("PlatformCommission")
-                        .HasColumnType("numeric");
 
                     b.Property<decimal?>("Price")
                         .HasPrecision(18, 2)
@@ -631,6 +586,73 @@ namespace UpStudy.Migrations
                     b.ToTable("Reviews");
                 });
 
+            modelBuilder.Entity("UpStudy.Models.Wallet", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Balance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("FrozenBalance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("Wallets");
+                });
+
+            modelBuilder.Entity("UpStudy.Models.WalletTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("WalletId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("WalletId");
+
+                    b.ToTable("WalletTransactions");
+                });
+
             modelBuilder.Entity("UpStudy.Models.WorkType", b =>
                 {
                     b.Property<int>("Id")
@@ -738,17 +760,6 @@ namespace UpStudy.Migrations
                     b.Navigation("Chat");
 
                     b.Navigation("Sender");
-                });
-
-            modelBuilder.Entity("UpStudy.Models.DirectPaymentRequest", b =>
-                {
-                    b.HasOne("UpStudy.Models.Order", "Order")
-                        .WithMany("PaymentRequests")
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Order");
                 });
 
             modelBuilder.Entity("UpStudy.Models.Discipline", b =>
@@ -883,6 +894,34 @@ namespace UpStudy.Migrations
                     b.Navigation("TargetUser");
                 });
 
+            modelBuilder.Entity("UpStudy.Models.Wallet", b =>
+                {
+                    b.HasOne("UpStudy.Models.AppUser", "User")
+                        .WithOne("Wallet")
+                        .HasForeignKey("UpStudy.Models.Wallet", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("UpStudy.Models.WalletTransaction", b =>
+                {
+                    b.HasOne("UpStudy.Models.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId");
+
+                    b.HasOne("UpStudy.Models.Wallet", "Wallet")
+                        .WithMany("Transactions")
+                        .HasForeignKey("WalletId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+
+                    b.Navigation("Wallet");
+                });
+
             modelBuilder.Entity("UpStudy.Models.AppUser", b =>
                 {
                     b.Navigation("ClientOrders");
@@ -894,6 +933,8 @@ namespace UpStudy.Migrations
                     b.Navigation("RefreshTokens");
 
                     b.Navigation("Reviews");
+
+                    b.Navigation("Wallet");
                 });
 
             modelBuilder.Entity("UpStudy.Models.Chat", b =>
@@ -917,11 +958,14 @@ namespace UpStudy.Migrations
 
                     b.Navigation("Chat");
 
-                    b.Navigation("PaymentRequests");
-
                     b.Navigation("Proposals");
 
                     b.Navigation("Review");
+                });
+
+            modelBuilder.Entity("UpStudy.Models.Wallet", b =>
+                {
+                    b.Navigation("Transactions");
                 });
 #pragma warning restore 612, 618
         }

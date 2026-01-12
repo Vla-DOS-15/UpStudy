@@ -124,4 +124,110 @@ public class OrdersController : ControllerBase
             return StatusCode(500, ex.Message);
         }
     }
+    
+    
+    [HttpPost("{id}/accept-executor")]
+    [Authorize]
+    public async Task<IActionResult> AcceptExecutor(Guid id, [FromBody] AcceptExecutorDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        try
+        {
+            await _orderService.AcceptExecutorAsync(id, userId!, dto.ProposalId);
+            return Ok(new { Message = "Виконавця прийнято. Кошти заморожено." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpPost("{id}/complete")]
+    [Authorize]
+    public async Task<IActionResult> CompleteOrder(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        try
+        {
+            await _orderService.CompleteOrderAsync(id, userId!);
+            return Ok(new { Message = "Замовлення завершено. Кошти перераховано." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+    }
+
+    [HttpPost("{id}/revision")]
+    [Authorize]
+    public async Task<IActionResult> RequestRevision(Guid id, [FromBody] RevisionDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        await _orderService.RequestRevisionAsync(id, userId!, dto.Comment);
+        return Ok(new { Message = "Відправлено на доопрацювання" });
+    }
+
+    [HttpPost("{id}/dispute")]
+    [Authorize]
+    public async Task<IActionResult> OpenDispute(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        await _orderService.OpenDisputeAsync(id, userId!);
+        return Ok(new { Message = "Арбітраж відкрито" });
+    }
+    
+    
+    // 2.7 POST: Залишити відгук
+    [HttpPost("{id}/review")]
+    [Authorize]
+    public async Task<IActionResult> LeaveReview(Guid id, [FromBody] CreateReviewDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            await _orderService.LeaveReviewAsync(id, userId, dto);
+            return Ok(new { Message = "Відгук успішно додано." });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound("Замовлення не знайдено");
+        }
+        catch (UnauthorizedAccessException) // 403 Forbidden
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex) // Не той статус або відгук вже є
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+    
+    
+    // 3.0 GET: Пошук замовлень (публічний або тільки для авторизованих)
+    [HttpGet] 
+    // [Authorize] - розкоментуйте, якщо переглядати можуть тільки зареєстровані
+    public async Task<IActionResult> GetOrders([FromQuery] SearchOrdersQuery query)
+    {
+        try
+        {
+            var result = await _orderService.SearchOrdersAsync(query);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 }

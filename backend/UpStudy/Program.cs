@@ -50,6 +50,7 @@ builder.Services.AddAuthentication(options =>
 // Реєстрація сервісів
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IProposalService, ProposalService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
