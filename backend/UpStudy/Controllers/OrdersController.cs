@@ -213,4 +213,21 @@ public class OrdersController : ControllerBase
             return StatusCode(500, ex.Message);
         }
     }
+    
+    
+    // 3.0 GET: Пошук замовлень (публічний або тільки для авторизованих)
+    [HttpGet] 
+    // [Authorize] - розкоментуйте, якщо переглядати можуть тільки зареєстровані
+    public async Task<IActionResult> GetOrders([FromQuery] SearchOrdersQuery query)
+    {
+        try
+        {
+            var result = await _orderService.SearchOrdersAsync(query);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 }

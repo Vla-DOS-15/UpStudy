@@ -122,7 +122,6 @@ public class OrderService : IOrderService
         {
             Id = p.Id,
             Price = p.Price,
-            DaysToComplete = p.DaysToComplete,
             Comment = p.Comment,
             Status = p.Status.ToString(),
             ExecutorId = p.ExecutorId,
@@ -363,5 +362,74 @@ public class OrderService : IOrderService
         // якщо ви додасте поле Rating в таблицю юзерів.
     
         await _context.SaveChangesAsync();
+    }
+    
+    
+    public async Task<PagedResult<OrderPreviewDto>> SearchOrdersAsync(SearchOrdersQuery query)
+    {
+        // 1. Початковий запит (тільки нові замовлення)
+        // AsNoTracking() пришвидшує читання, бо нам не треба відстежувати зміни
+        var dbQuery = _context.Orders
+            .AsNoTracking()
+            .Include(o => o.Discipline)
+            .Include(o => o.WorkType)
+            .Include(o => o.Client)
+            .Where(o => o.Status == OrderStatus.New);
+
+        // 2. Застосування фільтрів (динамічно)
+        
+        if (query.DisciplineId.HasValue)
+        {
+            dbQuery = dbQuery.Where(o => o.DisciplineId == query.DisciplineId.Value);
+        }
+
+        if (query.WorkTypeId.HasValue)
+        {
+            dbQuery = dbQuery.Where(o => o.WorkTypeId == query.WorkTypeId.Value);
+        }
+
+        if (query.MinPrice.HasValue)
+        {
+            // Враховуємо, що Price може бути null (якщо договірна), тому фільтруємо тільки там, де є ціна
+            dbQuery = dbQuery.Where(o => o.Price != null && o.Price >= query.MinPrice.Value);
+        }
+
+        if (query.MaxPrice.HasValue)
+        {
+            dbQuery = dbQuery.Where(o => o.Price != null && o.Price <= query.MaxPrice.Value);
+        }
+
+        // 3. Сортування (спочатку найсвіжіші)
+        dbQuery = dbQuery.OrderByDescending(o => o.CreatedAt);
+
+        // 4. Пагінація
+        var totalCount = await dbQuery.CountAsync(); // Рахуємо загальну кількість ДО пагінації
+        
+        var items = await dbQuery
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .Select(o => new OrderPreviewDto
+            {
+                Id = o.Id,
+                Title = o.Title,
+                Price = o.Price,
+                IsNegotiable = o.IsNegotiable,
+                Deadline = o.Deadline,
+                CreatedAt = o.CreatedAt,
+                Status = o.Status.ToString(),
+                DisciplineName = o.Discipline.Name,
+                WorkTypeName = o.WorkType.Name,
+                ClientName = $"{o.Client.FirstName} {o.Client.LastName}"
+            })
+            .ToListAsync();
+
+        // 5. Повертаємо результат
+        return new PagedResult<OrderPreviewDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            CurrentPage = query.Page,
+            PageSize = query.PageSize
+        };
     }
 }

@@ -13,4 +13,6 @@ public interface IOrderService
     Task RequestRevisionAsync(Guid orderId, string clientId, string comment);
     Task OpenDisputeAsync(Guid orderId, string clientId);
     Task LeaveReviewAsync(Guid orderId, string clientId, CreateReviewDto dto);
+    
+    Task<PagedResult<OrderPreviewDto>> SearchOrdersAsync(SearchOrdersQuery query);
 }
