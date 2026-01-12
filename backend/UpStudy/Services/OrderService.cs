@@ -9,13 +9,15 @@ public class OrderService : IOrderService
 {
     private readonly ApplicationDbContext _context;
     private readonly IWebHostEnvironment _environment;
-
+    private readonly IChatService _chatService;
+    
     private const decimal CommissionRate = 0.15m;
     
-    public OrderService(ApplicationDbContext context, IWebHostEnvironment environment)
+    public OrderService(ApplicationDbContext context, IWebHostEnvironment environment, IChatService chatService)
     {
         _context = context;
         _environment = environment;
+        _chatService = chatService;
     }
 
     public async Task<Order> CreateOrderAsync(string clientId, CreateOrderDto dto)
@@ -170,6 +172,9 @@ public class OrderService : IOrderService
         proposal.Status = ProposalStatus.Accepted;
 
         await _context.SaveChangesAsync();
+        
+        // 4.3 Системне сповіщення
+        await _chatService.SendSystemMessageAsync(order.Id, "Виконавця обрано. Очікується оплата комісії.");
     }
 
     // 2.4 ЗАВЕРШИТИ ЗАМОВЛЕННЯ (ПЕРЕКАЗ КОШТІВ)
@@ -195,6 +200,8 @@ public class OrderService : IOrderService
         // Тут можна відправити нотифікацію виконавцю: "Клієнт підтвердив виконання!"
 
         await _context.SaveChangesAsync();
+        
+        await _chatService.SendSystemMessageAsync(order.Id, "Замовлення виконано! Гроші перераховано виконавцю.");
     }
 
     // 2.5
