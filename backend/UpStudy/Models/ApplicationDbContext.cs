@@ -18,8 +18,6 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
     public DbSet<Review> Reviews { get; set; }
     public DbSet<OrderAttachment> OrderAttachments { get; set; }
     public DbSet<ChatAttachment> ChatAttachments { get; set; }
-    public DbSet<Wallet> Wallets { get; set; }
-    public DbSet<WalletTransaction> WalletTransactions { get; set; }
     
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
     
@@ -118,19 +116,10 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
             .HasForeignKey(o => o.DisciplineId)
             .OnDelete(DeleteBehavior.Restrict); 
         
-        builder.Entity<AppUser>()
-            .HasOne(u => u.Wallet)
-            .WithOne(w => w.User)
-            .HasForeignKey<Wallet>(w => w.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
 
         // --- Money & Decimal Configuration ---
         builder.Entity<Order>().Property(o => o.Price).HasPrecision(18, 2);
         builder.Entity<OrderProposal>().Property(p => p.Price).HasPrecision(18, 2);
         builder.Entity<ReadyWork>().Property(w => w.Price).HasPrecision(18, 2);
-        
-        builder.Entity<Wallet>().Property(w => w.Balance).HasPrecision(18, 2);
-        builder.Entity<Wallet>().Property(w => w.FrozenBalance).HasPrecision(18, 2);
-        builder.Entity<WalletTransaction>().Property(t => t.Amount).HasPrecision(18, 2);
     }
 }

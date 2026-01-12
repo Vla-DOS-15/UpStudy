@@ -10,6 +10,8 @@ public class OrderService : IOrderService
     private readonly ApplicationDbContext _context;
     private readonly IWebHostEnvironment _environment;
 
+    private const decimal CommissionRate = 0.15m;
+    
     public OrderService(ApplicationDbContext context, IWebHostEnvironment environment)
     {
         _context = context;
@@ -18,7 +20,6 @@ public class OrderService : IOrderService
 
     public async Task<Order> CreateOrderAsync(string clientId, CreateOrderDto dto)
     {
-        // 1. Створюємо об'єкт замовлення
         var order = new Order
         {
             Id = Guid.NewGuid(),
@@ -26,6 +27,12 @@ public class OrderService : IOrderService
             Description = dto.Description,
             IsNegotiable = dto.IsNegotiable,
             Price = dto.IsNegotiable ? null : dto.Price,
+            
+            // Якщо ціна фіксована одразу, можемо попередньо порахувати (опціонально)
+            // Але фінальний розрахунок буде при виборі виконавця
+            ExecutorPrice = dto.IsNegotiable || dto.Price == null ? 0 : dto.Price.Value * (1 - CommissionRate),
+            PlatformCommission = dto.IsNegotiable || dto.Price == null ? 0 : dto.Price.Value * CommissionRate,
+
             Deadline = dto.Deadline.ToUniversalTime(),
             CreatedAt = DateTime.UtcNow,
             Status = OrderStatus.New,
@@ -35,23 +42,20 @@ public class OrderService : IOrderService
             Attachments = new List<OrderAttachment>()
         };
 
+        // ... (Блок завантаження файлів без змін) ...
         if (dto.Files != null && dto.Files.Any())
         {
             var uploadPath = Path.Combine(_environment.WebRootPath, "uploads", "orders");
-            
-            if (!Directory.Exists(uploadPath))
-                Directory.CreateDirectory(uploadPath);
+            if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
 
             foreach (var file in dto.Files)
             {
                 var uniqueFileName = $"{Guid.NewGuid()}_{file.FileName}";
                 var filePath = Path.Combine(uploadPath, uniqueFileName);
-
                 using (var stream = new FileStream(filePath, FileMode.Create))
                 {
                     await file.CopyToAsync(stream);
                 }
-
                 order.Attachments.Add(new OrderAttachment
                 {
                     OrderId = order.Id,
@@ -65,39 +69,35 @@ public class OrderService : IOrderService
 
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
-
         return order;
     }
     
     public async Task<Order> UpdateOrderAsync(Guid orderId, string userId, UpdateOrderDto dto)
     {
-        var order = await _context.Orders
-            .Include(o => o.Proposals)
-            .FirstOrDefaultAsync(o => o.Id == orderId);
-
-        if (order == null)
-            throw new KeyNotFoundException("Замовлення не знайдено");
-
-        if (order.ClientId != userId)
-            throw new UnauthorizedAccessException("Ви не можете редагувати чуже замовлення");
-
-        if (order.Status != OrderStatus.New)
-            throw new InvalidOperationException("Замовлення не можна редагувати, бо воно вже в роботі або завершене.");
-
-        if (order.Proposals.Any())
-            throw new InvalidOperationException("Замовлення не можна редагувати, оскільки вже є ставки від виконавців.");
+        var order = await _context.Orders.Include(o => o.Proposals).FirstOrDefaultAsync(o => o.Id == orderId);
+        if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
+        if (order.ClientId != userId) throw new UnauthorizedAccessException("Ви не можете редагувати чуже замовлення");
+        if (order.Status != OrderStatus.New) throw new InvalidOperationException("Замовлення вже в роботі.");
+        if (order.Proposals.Any()) throw new InvalidOperationException("Не можна редагувати, є ставки.");
 
         order.Title = dto.Title;
         order.Description = dto.Description;
         order.IsNegotiable = dto.IsNegotiable;
         order.Price = dto.IsNegotiable ? null : dto.Price;
+        
+        // Перераховуємо попередні значення, якщо змінилась ціна
+        if (!order.IsNegotiable && order.Price.HasValue)
+        {
+            order.PlatformCommission = order.Price.Value * CommissionRate;
+            order.ExecutorPrice = order.Price.Value - order.PlatformCommission;
+        }
+
         order.Deadline = dto.Deadline.ToUniversalTime();
         order.DisciplineId = dto.DisciplineId;
         order.WorkTypeId = dto.WorkTypeId;
 
         _context.Orders.Update(order);
         await _context.SaveChangesAsync();
-
         return order;
     }
 
@@ -136,133 +136,71 @@ public class OrderService : IOrderService
     // 2.3 ПРИЙНЯТИ ВИКОНАВЦЯ (ЗАМОРОЗКА КОШТІВ)
     public async Task AcceptExecutorAsync(Guid orderId, string clientId, Guid proposalId)
     {
-        // Починаємо транзакцію БД
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
-        {
-            var order = await _context.Orders
-                .Include(o => o.Proposals)
-                .FirstOrDefaultAsync(o => o.Id == orderId);
+        // Більше не потрібна транзакція з Wallet, це проста операція оновлення
+        var order = await _context.Orders
+            .Include(o => o.Proposals)
+            .FirstOrDefaultAsync(o => o.Id == orderId);
 
-            if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
-            if (order.ClientId != clientId) throw new UnauthorizedAccessException("Це не ваше замовлення");
-            if (order.Status != OrderStatus.New) throw new InvalidOperationException("Замовлення вже не нове");
+        if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
+        if (order.ClientId != clientId) throw new UnauthorizedAccessException("Це не ваше замовлення");
+        
+        // Важливо: Ми дозволяємо вибрати виконавця, навіть якщо статус New, 
+        // але ми НЕ переводимо в InProgress, поки не буде оплачена комісія.
+        
+        var proposal = order.Proposals.FirstOrDefault(p => p.Id == proposalId);
+        if (proposal == null) throw new KeyNotFoundException("Пропозицію не знайдено");
 
-            var proposal = order.Proposals.FirstOrDefault(p => p.Id == proposalId);
-            if (proposal == null) throw new KeyNotFoundException("Пропозицію не знайдено");
+        // 1. Фіксуємо суми
+        decimal totalPrice = proposal.Price;
+        decimal commission = Math.Round(totalPrice * CommissionRate, 2); // Округляємо до копійок
+        decimal toExecutor = totalPrice - commission;
 
-            // 1. Отримуємо гаманець клієнта
-            var clientWallet = await _context.Wallets
-                .FirstOrDefaultAsync(w => w.UserId == clientId);
+        // 2. Оновлюємо замовлення (підготовка до оплати)
+        order.ExecutorId = proposal.ExecutorId;
+        order.Price = totalPrice;
+        order.PlatformCommission = commission;
+        order.ExecutorPrice = toExecutor;
+        order.IsCommissionPaid = false; // Ще не оплачено!
+        
+        // СТАТУС НЕ ЗМІНЮЄМО НА InProgress! 
+        // Статус зміниться тільки після Webhook від WayForPay.
+        // Можна залишити New або додати статус "WaitingForPayment".
+        // Поки залишаємо New, але з заповненим ExecutorId.
 
-            if (clientWallet == null) 
-                throw new InvalidOperationException("Гаманець користувача не знайдено (зверніться в підтримку).");
+        proposal.Status = ProposalStatus.Accepted;
 
-            decimal price = proposal.Price;
-
-            // 2. Перевірка балансу
-            if (clientWallet.Balance < price)
-                throw new InvalidOperationException($"Недостатньо коштів. Потрібно {price}, на балансі {clientWallet.Balance}.");
-
-            // 3. Змінюємо баланс (Логіка Холду)
-            clientWallet.Balance -= price;
-            clientWallet.FrozenBalance += price;
-
-            // 4. Пишемо лог транзакції
-            _context.WalletTransactions.Add(new WalletTransaction
-            {
-                WalletId = clientWallet.Id,
-                Amount = -price, // Списання з доступного
-                Type = TransactionType.HoldForOrder,
-                OrderId = order.Id,
-                Description = $"Заморозка коштів під замовлення '{order.Title}'",
-                CreatedAt = DateTime.UtcNow
-            });
-
-            // 5. Оновлюємо замовлення
-            order.ExecutorId = proposal.ExecutorId;
-            order.Price = price; // Фіксуємо фінальну ціну
-            order.Status = OrderStatus.InProgress;
-            proposal.Status = ProposalStatus.Accepted;
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync(); // Підтверджуємо все
-        }
-        catch
-        {
-            await transaction.RollbackAsync(); // Відкочуємо все при помилці
-            throw;
-        }
+        await _context.SaveChangesAsync();
     }
 
     // 2.4 ЗАВЕРШИТИ ЗАМОВЛЕННЯ (ПЕРЕКАЗ КОШТІВ)
     public async Task CompleteOrderAsync(Guid orderId, string clientId)
     {
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
-        {
-            var order = await _context.Orders
-                .Include(o => o.Client).ThenInclude(c => c.Wallet) // Гаманець клієнта
-                .Include(o => o.Executor).ThenInclude(e => e.Wallet) // Гаманець виконавця
-                .FirstOrDefaultAsync(o => o.Id == orderId);
-
-            if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
-            if (order.ClientId != clientId) throw new UnauthorizedAccessException("Немає прав");
-            
-            // Дозволяємо завершувати зі статусу Review (або InProgress, якщо є довіра)
-            if (order.Status != OrderStatus.Review && order.Status != OrderStatus.InProgress)
-                throw new InvalidOperationException("Замовлення не готове до завершення");
-
-            if (order.Executor?.Wallet == null || order.Client?.Wallet == null)
-                throw new InvalidOperationException("Проблема з гаманцями учасників");
-
-            decimal amount = order.Price ?? 0;
-            if (amount <= 0) throw new InvalidOperationException("Ціна замовлення некоректна");
-
-            // 1. Розморожуємо гроші клієнта (списуємо їх остаточно)
-            if (order.Client.Wallet.FrozenBalance < amount)
-                throw new InvalidOperationException("Помилка цілісності: заморожений баланс менший за суму замовлення.");
-
-            order.Client.Wallet.FrozenBalance -= amount;
-
-            // 2. Нараховуємо гроші виконавцю
-            // (Тут можна додати комісію платформи, наприклад 10%)
-            decimal commission = amount * 0.10m; 
-            decimal toExecutor = amount - commission;
-
-            order.Executor.Wallet.Balance += toExecutor;
-
-            // 3. Пишемо лог транзакції (Виконавцю)
-            _context.WalletTransactions.Add(new WalletTransaction
-            {
-                WalletId = order.Executor.Wallet.Id,
-                Amount = toExecutor,
-                Type = TransactionType.ReleaseToExecutor,
-                OrderId = order.Id,
-                Description = $"Зарахування за замовлення '{order.Title}' (комісія {commission})",
-                CreatedAt = DateTime.UtcNow
-            });
-
-            // 4. Оновлюємо статус
-            order.Status = OrderStatus.Completed;
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
-    }
-
-    // 2.5 НА ДООПРАЦЮВАННЯ
-    public async Task RequestRevisionAsync(Guid orderId, string clientId, string comment)
-    {
         var order = await _context.Orders
-            .Include(o => o.Chat)
             .FirstOrDefaultAsync(o => o.Id == orderId);
 
+        if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
+        if (order.ClientId != clientId) throw new UnauthorizedAccessException("Немає прав");
+
+        // Перевіряємо, чи можна завершити
+        if (order.Status != OrderStatus.Review && order.Status != OrderStatus.InProgress)
+            throw new InvalidOperationException("Замовлення не готове до завершення");
+
+        // Більше немає переказу грошей (WalletTransaction).
+        // Ми просто фіксуємо факт завершення. 
+        // Припускаємо, що клієнт розрахувався з виконавцем напряму (карта/готівка),
+        // або використовував функціонал DirectPaymentRequest (який варто перевірити тут, якщо суворо).
+        
+        order.Status = OrderStatus.Completed;
+
+        // Тут можна відправити нотифікацію виконавцю: "Клієнт підтвердив виконання!"
+
+        await _context.SaveChangesAsync();
+    }
+
+    // 2.5
+    public async Task RequestRevisionAsync(Guid orderId, string clientId, string comment)
+    {
+        var order = await _context.Orders.Include(o => o.Chat).FirstOrDefaultAsync(o => o.Id == orderId);
         if (order == null) throw new KeyNotFoundException();
         if (order.ClientId != clientId) throw new UnauthorizedAccessException();
         
@@ -271,7 +209,6 @@ public class OrderService : IOrderService
 
         order.Status = OrderStatus.InProgress;
 
-        // Додаємо системне повідомлення в чат
         if (order.Chat != null)
         {
             _context.ChatMessages.Add(new ChatMessage
@@ -289,15 +226,12 @@ public class OrderService : IOrderService
     // 2.6 ВІДКРИТИ СПІР
     public async Task OpenDisputeAsync(Guid orderId, string clientId)
     {
-        var order = await _context.Orders
-            .Include(o => o.Chat)
-            .FirstOrDefaultAsync(o => o.Id == orderId);
-
+        var order = await _context.Orders.Include(o => o.Chat).FirstOrDefaultAsync(o => o.Id == orderId);
         if (order == null) throw new KeyNotFoundException();
         if (order.ClientId != clientId) throw new UnauthorizedAccessException();
 
         if (order.Status != OrderStatus.InProgress && order.Status != OrderStatus.Review)
-            throw new InvalidOperationException("Неможливо відкрити спір на цьому етапі.");
+            throw new InvalidOperationException("Неможливо відкрити спір.");
 
         order.Status = OrderStatus.Dispute;
 
@@ -367,8 +301,6 @@ public class OrderService : IOrderService
     
     public async Task<PagedResult<OrderPreviewDto>> SearchOrdersAsync(SearchOrdersQuery query)
     {
-        // 1. Початковий запит (тільки нові замовлення)
-        // AsNoTracking() пришвидшує читання, бо нам не треба відстежувати зміни
         var dbQuery = _context.Orders
             .AsNoTracking()
             .Include(o => o.Discipline)
@@ -376,35 +308,25 @@ public class OrderService : IOrderService
             .Include(o => o.Client)
             .Where(o => o.Status == OrderStatus.New);
 
-        // 2. Застосування фільтрів (динамічно)
-        
+        // При пошуку важливо: якщо замовлення має статус New, але вже має ExecutorId (чекає оплати комісії),
+        // його, мабуть, не варто показувати в пошуку для інших виконавців.
+        dbQuery = dbQuery.Where(o => o.ExecutorId == null);
+
         if (query.DisciplineId.HasValue)
-        {
             dbQuery = dbQuery.Where(o => o.DisciplineId == query.DisciplineId.Value);
-        }
 
         if (query.WorkTypeId.HasValue)
-        {
             dbQuery = dbQuery.Where(o => o.WorkTypeId == query.WorkTypeId.Value);
-        }
 
         if (query.MinPrice.HasValue)
-        {
-            // Враховуємо, що Price може бути null (якщо договірна), тому фільтруємо тільки там, де є ціна
             dbQuery = dbQuery.Where(o => o.Price != null && o.Price >= query.MinPrice.Value);
-        }
 
         if (query.MaxPrice.HasValue)
-        {
             dbQuery = dbQuery.Where(o => o.Price != null && o.Price <= query.MaxPrice.Value);
-        }
 
-        // 3. Сортування (спочатку найсвіжіші)
         dbQuery = dbQuery.OrderByDescending(o => o.CreatedAt);
 
-        // 4. Пагінація
-        var totalCount = await dbQuery.CountAsync(); // Рахуємо загальну кількість ДО пагінації
-        
+        var totalCount = await dbQuery.CountAsync();
         var items = await dbQuery
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
@@ -423,7 +345,6 @@ public class OrderService : IOrderService
             })
             .ToListAsync();
 
-        // 5. Повертаємо результат
         return new PagedResult<OrderPreviewDto>
         {
             Items = items,

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
 
 namespace UpStudy.Models;
@@ -9,8 +10,12 @@ public class AppUser : IdentityUser
     
     // Профіль виконавця (необов'язкові поля, заповнюються якщо юзер хоче бути виконавцем)
     public string? AboutMe { get; set; }
+    
+    [StringLength(16)]
+    public string? BankCardNumber { get; set; } 
+    
+    public bool IsFop { get; set; } = false;
 
-    public Wallet? Wallet { get; set; }
     public List<RefreshTokenInfo> RefreshTokens { get; set; } = new();
 
     // Замовлення, які створив цей юзер
