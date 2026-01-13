@@ -22,8 +22,8 @@ public class DirectPaymentRequest
 
 public enum PaymentRequestStatus
 {
-    Pending = 1,
-    MarkedAsPaidByClient = 2, // Клієнт натиснув "Я оплатив"
-    ConfirmedByExecutor = 3,  // Виконавець натиснув "Гроші прийшли"
-    Rejected = 4              // Виконавець не отримав гроші
+    Pending = 1,          // Виставлено
+    MarkedAsPaid = 2,     // Клієнт натиснув "Оплатив"
+    Confirmed = 3,        // Виконавець підтвердив
+    Rejected = 4          // Відхилено
 }

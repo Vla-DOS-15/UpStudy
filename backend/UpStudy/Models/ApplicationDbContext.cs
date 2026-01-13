@@ -18,6 +18,7 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
     public DbSet<Review> Reviews { get; set; }
     public DbSet<OrderAttachment> OrderAttachments { get; set; }
     public DbSet<ChatAttachment> ChatAttachments { get; set; }
+    public DbSet<DirectPaymentRequest> DirectPaymentRequests { get; set; }
     
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
     

@@ -52,8 +52,10 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
-builder.Services.AddSignalR();
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddSignalR();
+
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -80,6 +82,21 @@ var app = builder.Build();
 //     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 //     db.Database.Migrate();
 // }
+
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        // Викликаємо наш ініціалізатор
+        await UpStudy.Data.DbInitializer.InitializeAsync(services);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Помилка під час наповнення бази даних.");
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {
