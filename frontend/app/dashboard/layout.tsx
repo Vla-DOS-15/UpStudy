@@ -1,6 +1,6 @@
-import { Sidebar } from '@/components/layout/sidebar';
+import { Sidebar } from '@/components/layout/Sidebar';
 import { ModeToggle } from '@/components/layout/mode-toggle';
-import { Header } from '@/components/layout/header'; // Або спрощений хедер для дашборду
+import { Header } from '@/components/layout/Header'; // Або спрощений хедер для дашборду
 
 export default function DashboardLayout({
   children,
