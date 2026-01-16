@@ -8,6 +8,8 @@ using UpStudy.Hubs;
 using UpStudy.Interfaces;
 using UpStudy.Models;
 using UpStudy.Services;
+using Amazon.S3;
+using Amazon.Runtime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -87,6 +89,18 @@ builder.Services.AddCors(options =>
         });
 });
 
+var awsOptions = new Amazon.Extensions.NETCore.Setup.AWSOptions
+{
+    Credentials = new BasicAWSCredentials(
+        builder.Configuration["AWS:AccessKey"],
+        builder.Configuration["AWS:SecretKey"]
+    ),
+    Region = Amazon.RegionEndpoint.GetBySystemName(builder.Configuration["AWS:Region"])
+};
+builder.Services.AddDefaultAWSOptions(awsOptions);
+builder.Services.AddAWSService<IAmazonS3>();
+
+builder.Services.AddScoped<IS3Service, S3Service>();
 var app = builder.Build();
 
 // --- ВАЖЛИВО: Застосування міграцій при старті (Опціонально) ---
