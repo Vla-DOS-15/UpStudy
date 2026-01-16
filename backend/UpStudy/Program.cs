@@ -74,6 +74,19 @@ builder.Services.AddSwaggerGen(options =>
         [new OpenApiSecuritySchemeReference("bearer", document)] = []
     });
 });
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:3000") // Адреса твого Next.js
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials(); // Якщо використовуєш Cookies
+        });
+});
+
 var app = builder.Build();
 
 // --- ВАЖЛИВО: Застосування міграцій при старті (Опціонально) ---
@@ -105,6 +118,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("AllowFrontend");
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
