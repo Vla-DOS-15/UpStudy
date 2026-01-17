@@ -11,10 +11,12 @@ namespace UpStudy.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
+    private readonly IS3Service _s3Service;
 
-    public OrdersController(IOrderService orderService)
+    public OrdersController(IOrderService orderService, IS3Service s3Service)
     {
         _orderService = orderService;
+        _s3Service = s3Service;
     }
 
     [HttpPost]
@@ -33,19 +35,36 @@ public class OrdersController : ControllerBase
         {
             var createdOrder = await _orderService.CreateOrderAsync(userId, dto);
 
+            // Генеруємо presigned URLs для всіх файлів
+            var attachmentDtos = new List<AttachmentDto>();
+            
+            foreach (var attachment in createdOrder.Attachments)
+            {
+                var viewUrl = await _s3Service.GetPresignedViewUrlAsync(attachment.S3Key, expirationMinutes: 60);
+                var downloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(attachment.S3Key, expirationMinutes: 60);
+                
+                attachmentDtos.Add(new AttachmentDto
+                {
+                    Id = attachment.Id,
+                    OriginalFileName = attachment.OriginalFileName,
+                    ViewUrl = viewUrl,
+                    DownloadUrl = downloadUrl,
+                    UploadedAt = attachment.UploadedAt,
+                    IsResultWork = attachment.IsResultWork
+                });
+            }
+
             var response = new OrderResponseDto
             {
                 Id = createdOrder.Id,
                 Title = createdOrder.Title,
                 Description = createdOrder.Description,
                 Price = createdOrder.Price,
+                IsNegotiable = createdOrder.IsNegotiable,
+                Deadline = createdOrder.Deadline,
                 Status = createdOrder.Status.ToString(),
-                Attachments = createdOrder.Attachments.Select(a => new AttachmentDto
-                {
-                    Id = a.Id,
-                    FilePath = a.FilePath,
-                    OriginalFileName = a.OriginalFileName
-                }).ToList()
+                CreatedAt = createdOrder.CreatedAt,
+                Attachments = attachmentDtos
             };
 
             return CreatedAtAction(nameof(GetOrderById), new { id = response.Id }, response);

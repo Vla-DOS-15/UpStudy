@@ -7,7 +7,7 @@ public class OrderAttachment
     [Key]
     public Guid Id { get; set; } = Guid.NewGuid();
 
-    public string FilePath { get; set; } = string.Empty;
+    public string S3Key { get; set; } = string.Empty;
     public string OriginalFileName { get; set; } = string.Empty;
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
 

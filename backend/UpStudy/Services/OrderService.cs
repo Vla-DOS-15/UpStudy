@@ -8,15 +8,15 @@ namespace UpStudy.Services;
 public class OrderService : IOrderService
 {
     private readonly ApplicationDbContext _context;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IS3Service _s3Service;
     private readonly IChatService _chatService;
     
     private const decimal CommissionRate = 0.15m;
     
-    public OrderService(ApplicationDbContext context, IWebHostEnvironment environment, IChatService chatService)
+    public OrderService(ApplicationDbContext context, IS3Service s3Service, IChatService chatService)
     {
         _context = context;
-        _environment = environment;
+        _s3Service = s3Service;
         _chatService = chatService;
     }
 
@@ -29,12 +29,8 @@ public class OrderService : IOrderService
             Description = dto.Description,
             IsNegotiable = dto.IsNegotiable,
             Price = dto.IsNegotiable ? null : dto.Price,
-            
-            // Якщо ціна фіксована одразу, можемо попередньо порахувати (опціонально)
-            // Але фінальний розрахунок буде при виборі виконавця
             ExecutorPrice = dto.IsNegotiable || dto.Price == null ? 0 : dto.Price.Value * (1 - CommissionRate),
             PlatformCommission = dto.IsNegotiable || dto.Price == null ? 0 : dto.Price.Value * CommissionRate,
-
             Deadline = dto.Deadline.ToUniversalTime(),
             CreatedAt = DateTime.UtcNow,
             Status = OrderStatus.New,
@@ -44,25 +40,19 @@ public class OrderService : IOrderService
             Attachments = new List<OrderAttachment>()
         };
 
-        // ... (Блок завантаження файлів без змін) ...
+        // Завантаження файлів в S3
         if (dto.Files != null && dto.Files.Any())
         {
-            var uploadPath = Path.Combine(_environment.WebRootPath, "uploads", "orders");
-            if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
-
             foreach (var file in dto.Files)
             {
-                var uniqueFileName = $"{Guid.NewGuid()}_{file.FileName}";
-                var filePath = Path.Combine(uploadPath, uniqueFileName);
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await file.CopyToAsync(stream);
-                }
+                // Завантажуємо в папку "orders"
+                var s3Key = await _s3Service.UploadFileAsync(file, "orders");
+                
                 order.Attachments.Add(new OrderAttachment
                 {
                     OrderId = order.Id,
                     OriginalFileName = file.FileName,
-                    FilePath = $"/uploads/orders/{uniqueFileName}",
+                    S3Key = s3Key,  // Зберігаємо S3 ключ
                     UploadedAt = DateTime.UtcNow,
                     IsResultWork = false
                 });
@@ -359,5 +349,53 @@ public class OrderService : IOrderService
             CurrentPage = query.Page,
             PageSize = query.PageSize
         };
+    }
+    
+    public async Task<string> GetFileDownloadUrlAsync(Guid attachmentId, string userId, bool isAdmin = false)
+    {
+        var attachment = await _context.OrderAttachments
+            .Include(a => a.Order)
+            .FirstOrDefaultAsync(a => a.Id == attachmentId);
+
+        if (attachment == null)
+            throw new KeyNotFoundException("Файл не знайдено");
+
+        var order = attachment.Order;
+        
+        // Перевірка доступу
+        bool hasAccess = order.ClientId == userId || order.ExecutorId == userId;
+        
+        // Якщо це результат роботи - тільки замовник та виконавець можуть завантажити
+        if (attachment.IsResultWork)
+        {
+            if (!hasAccess && !isAdmin)
+                throw new UnauthorizedAccessException("Немає доступу до результату роботи");
+        }
+        else
+        {
+            // Звичайні файли замовлення доступні всім (для перегляду замовлення)
+            // Але якщо хочете обмежити - додайте перевірку
+        }
+
+        // Генеруємо presigned URL (дійсний 1 годину)
+        return await _s3Service.GetPresignedDownloadUrlAsync(attachment.S3Key);
+    }
+    
+    public async Task<string> GetFileViewUrlAsync(Guid attachmentId, string userId, bool isAdmin = false)
+    {
+        var attachment = await _context.OrderAttachments
+            .Include(a => a.Order)
+            .FirstOrDefaultAsync(a => a.Id == attachmentId);
+
+        if (attachment == null)
+            throw new KeyNotFoundException("Файл не знайдено");
+
+        var order = attachment.Order;
+        bool hasAccess = order.ClientId == userId || order.ExecutorId == userId;
+        
+        if (attachment.IsResultWork && !hasAccess && !isAdmin)
+            throw new UnauthorizedAccessException("Немає доступу");
+
+        return await _s3Service.GetPresignedViewUrlAsync(attachment.S3Key);
     }
 }

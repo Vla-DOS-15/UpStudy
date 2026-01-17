@@ -39,10 +39,9 @@ public class S3Service : IS3Service
                 Key = fileKey,
                 BucketName = _bucketName,
                 ContentType = file.ContentType,
-                // Зберігаємо оригінальне ім'я у метаданих
                 Metadata = 
                 {
-                    ["original-filename"] = file.FileName
+                    ["original-filename"] = System.Net.WebUtility.UrlEncode(file.FileName)
                 }
             };
 

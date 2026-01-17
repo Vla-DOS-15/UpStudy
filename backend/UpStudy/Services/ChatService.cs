@@ -12,23 +12,20 @@ public class ChatService : IChatService
 {
     private readonly ApplicationDbContext _context;
     private readonly IHubContext<ChatHub> _hubContext; // Тут HubContext ПОТРІБЕН
-    private readonly IWebHostEnvironment _environment;
-
-    public ChatService(ApplicationDbContext context, IHubContext<ChatHub> hubContext, IWebHostEnvironment environment)
+    private readonly IS3Service _s3Service;
+    public ChatService(ApplicationDbContext context, IHubContext<ChatHub> hubContext, IS3Service s3Service)
     {
         _context = context;
         _hubContext = hubContext;
-        _environment = environment;
+        _s3Service = s3Service;
     }
 
-    public async Task<List<ChatMessageDto>> GetMessagesAsync(Guid orderId, string userId)
+  public async Task<List<ChatMessageDto>> GetMessagesAsync(Guid orderId, string userId)
     {
-        // ... (Твій код отримання історії без змін) ...
         var order = await _context.Orders.Include(o => o.Chat).FirstOrDefaultAsync(o => o.Id == orderId);
         if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
         
         bool isParticipant = order.ClientId == userId || order.ExecutorId == userId; 
-        // Додати перевірку на менеджера при спорі, якщо треба
         
         if (!isParticipant) throw new UnauthorizedAccessException("Ви не маєте доступу до цього чату");
 
@@ -40,12 +37,35 @@ public class ChatService : IChatService
             return new List<ChatMessageDto>();
         }
 
-        return await _context.ChatMessages
+        var messages = await _context.ChatMessages
             .Where(m => m.ChatId == order.Chat.Id)
             .Include(m => m.Sender)
             .Include(m => m.Attachments)
             .OrderBy(m => m.SentAt)
-            .Select(m => new ChatMessageDto
+            .ToListAsync();
+
+        var messageDtos = new List<ChatMessageDto>();
+
+        foreach (var m in messages)
+        {
+            var attachmentDtos = new List<ChatAttachmentDto>();
+            
+            // Генеруємо presigned URLs для кожного файлу
+            foreach (var a in m.Attachments)
+            {
+                var viewUrl = await _s3Service.GetPresignedViewUrlAsync(a.S3Key, expirationMinutes: 60);
+                var downloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(a.S3Key, expirationMinutes: 60);
+                
+                attachmentDtos.Add(new ChatAttachmentDto
+                {
+                    Id = a.Id,
+                    OriginalFileName = a.OriginalFileName,
+                    ViewUrl = viewUrl,         // Для перегляду в браузері
+                    DownloadUrl = downloadUrl  // Для завантаження
+                });
+            }
+
+            messageDtos.Add(new ChatMessageDto
             {
                 Id = m.Id,
                 Text = m.Text,
@@ -53,11 +73,11 @@ public class ChatService : IChatService
                 IsSystem = m.IsSystem,
                 SenderId = m.SenderId,
                 SenderName = m.IsSystem ? "СИСТЕМА" : $"{m.Sender.FirstName} {m.Sender.LastName}",
-                Attachments = m.Attachments.Select(a => new ChatAttachmentDto
-                {
-                    Id = a.Id, FilePath = a.FilePath, OriginalFileName = a.OriginalFileName
-                }).ToList()
-            }).ToListAsync();
+                Attachments = attachmentDtos
+            });
+        }
+
+        return messageDtos;
     }
 
     // Єдиний метод для збереження і розсилки тексту
@@ -100,31 +120,54 @@ public class ChatService : IChatService
     // Метод для файлів (теж з розсилкою)
     public async Task<ChatMessageDto> SaveFileMessageAsync(Guid orderId, string senderId, IFormFile file)
     {
-        // ... (Твій код завантаження файлу без змін) ...
         var chat = await GetOrCreateChatAsync(orderId);
         
-        // (скорочено логіку збереження файлу для читабельності, твій код був правильний)
-        var uploadPath = Path.Combine(_environment.WebRootPath, "uploads", "chats");
-        if (!Directory.Exists(uploadPath)) Directory.CreateDirectory(uploadPath);
-        var uniqueFileName = $"{Guid.NewGuid()}_{file.FileName}";
-        using (var stream = new FileStream(Path.Combine(uploadPath, uniqueFileName), FileMode.Create)) { await file.CopyToAsync(stream); }
+        // Завантажуємо файл в S3 (папка "chat-files")
+        var s3Key = await _s3Service.UploadFileAsync(file, "chat-files");
 
-        var message = new ChatMessage { ChatId = chat.Id, SenderId = senderId, Text = string.Empty, SentAt = DateTime.UtcNow };
-        var attachment = new ChatAttachment { ChatMessage = message, OriginalFileName = file.FileName, FilePath = $"/uploads/chats/{uniqueFileName}" };
+        var message = new ChatMessage 
+        { 
+            ChatId = chat.Id, 
+            SenderId = senderId, 
+            Text = string.Empty, 
+            SentAt = DateTime.UtcNow 
+        };
+        
+        var attachment = new ChatAttachment 
+        { 
+            ChatMessage = message, 
+            OriginalFileName = file.FileName, 
+            S3Key = s3Key  // Зберігаємо S3 ключ
+        };
 
         _context.ChatMessages.Add(message);
         _context.ChatAttachments.Add(attachment);
         await _context.SaveChangesAsync();
         await _context.Entry(message).Reference(m => m.Sender).LoadAsync();
 
+        // Генеруємо presigned URLs
+        var viewUrl = await _s3Service.GetPresignedViewUrlAsync(s3Key);
+        var downloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(s3Key);
+
         var dto = new ChatMessageDto
         {
-            Id = message.Id, Text = "", SentAt = message.SentAt, SenderId = senderId,
+            Id = message.Id, 
+            Text = "", 
+            SentAt = message.SentAt, 
+            SenderId = senderId,
             SenderName = $"{message.Sender.FirstName} {message.Sender.LastName}",
-            Attachments = new List<ChatAttachmentDto> { new ChatAttachmentDto { Id = attachment.Id, FilePath = attachment.FilePath, OriginalFileName = attachment.OriginalFileName } }
+            Attachments = new List<ChatAttachmentDto> 
+            { 
+                new ChatAttachmentDto 
+                { 
+                    Id = attachment.Id, 
+                    OriginalFileName = attachment.OriginalFileName,
+                    ViewUrl = viewUrl,
+                    DownloadUrl = downloadUrl
+                } 
+            }
         };
 
-        // Розсилка про файл
         await _hubContext.Clients.Group(orderId.ToString()).SendAsync("ReceiveMessage", dto);
         return dto;
     }

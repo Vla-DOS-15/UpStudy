@@ -15,6 +15,8 @@ public class AppUser : IdentityUser
     public string? BankCardNumber { get; set; } 
     
     public bool IsFop { get; set; } = false;
+    
+    public string? AvatarS3Key { get; set; }
 
     public List<RefreshTokenInfo> RefreshTokens { get; set; } = new();
 
