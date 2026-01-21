@@ -10,6 +10,7 @@ using UpStudy.Models;
 using UpStudy.Services;
 using Amazon.S3;
 using Amazon.Runtime;
+using UpStudy.Constants;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,12 +51,24 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+builder.Services.AddAuthorization(options =>
+{
+    // Політика: Хто може перевіряти документи
+    options.AddPolicy("CanVerifyUsers", policy => 
+        policy.RequireRole(UserRoles.Admin, UserRoles.VerificationManager));
+
+    // Політика: Хто може бачити список всіх юзерів
+    options.AddPolicy("CanViewAllUsers", policy => 
+        policy.RequireRole(UserRoles.Admin, UserRoles.UserManager));
+});
+
 // Реєстрація сервісів
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddSignalR();
 
 

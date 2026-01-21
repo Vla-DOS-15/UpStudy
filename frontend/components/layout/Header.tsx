@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
+import { ModeToggle } from '@/components/layout/mode-toggle';
+import { AuthModal } from '@/components/auth/auth-modal'; // <--- Імпорт модалки
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,38 +13,37 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, LogOut, LayoutDashboard, User } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Loader2, LogOut, LayoutDashboard, User as UserIcon } from 'lucide-react';
 
 export function Header() {
   const { user, isLoading, logout } = useAuth();
 
-  // Отримуємо ініціали для аватара
-  const initials = user 
-    ? `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() 
-    : 'U';
+  const displayName = user?.firstName 
+    ? `${user.firstName} ${user.lastName || ''}` 
+    : user?.userName || user?.email || 'User';
+
+  const initials = displayName[0]?.toUpperCase() || 'U';
 
   return (
-    <header className="border-b bg-white">
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        {/* Логотип */}
-        <Link href="/" className="text-2xl font-bold text-blue-600">
-          UpStudy
+        <Link href="/" className="flex items-center gap-2">
+          <span className="text-2xl font-bold text-primary">UpStudy</span>
         </Link>
 
-        {/* Навігація / Авторизація */}
-        <div>
+        <div className="flex items-center gap-4">
+          <ModeToggle />
+
           {isLoading ? (
-            <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           ) : user ? (
-            // Якщо користувач увійшов
+            // Якщо користувач увійшов - показуємо меню профілю
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar>
-                    {/* Тут можна підставити реальне фото, якщо є */}
-                    <AvatarImage src="" alt={user.firstName} />
-                    <AvatarFallback className="bg-blue-100 text-blue-700">
+                    <AvatarFallback className="bg-primary/10 text-primary font-medium">
                       {initials}
                     </AvatarFallback>
                   </Avatar>
@@ -51,8 +52,8 @@ export function Header() {
               <DropdownMenuContent className="w-56" align="end">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{user.firstName} {user.lastName}</p>
-                    <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                    <p className="text-sm font-medium leading-none truncate">{displayName}</p>
+                    <p className="text-xs leading-none text-muted-foreground truncate">{user.email}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -64,27 +65,20 @@ export function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard/profile" className="cursor-pointer">
-                    <User className="mr-2 h-4 w-4" />
+                    <UserIcon className="mr-2 h-4 w-4" />
                     Мій профіль
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout} className="text-red-600 cursor-pointer">
+                <DropdownMenuItem onClick={logout} className="text-red-600 cursor-pointer focus:text-red-600">
                   <LogOut className="mr-2 h-4 w-4" />
                   Вийти
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            // Якщо гість
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" asChild>
-                <Link href="/login">Увійти</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/register">Зареєструватись</Link>
-              </Button>
-            </div>
+            // Якщо гість - показуємо модалку Вхід/Реєстрація
+            <AuthModal />
           )}
         </div>
       </div>

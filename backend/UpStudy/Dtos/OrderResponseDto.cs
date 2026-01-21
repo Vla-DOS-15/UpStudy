@@ -10,6 +10,13 @@ public class OrderResponseDto
     public DateTime Deadline { get; set; }
     public DateTime CreatedAt { get; set; }
     public string Status { get; set; } = string.Empty;
-    
+
+    // Додані поля для відображення деталей (оскільки ми робимо Include)
+    public string DisciplineName { get; set; } = string.Empty;
+    public string WorkTypeName { get; set; } = string.Empty;
+    public string ClientName { get; set; } = string.Empty;
+    public string ClientId { get; set; } = string.Empty; // Корисно для посилання на профіль
+    public string? ExecutorId { get; set; } // Щоб знати, чи є вже виконавець
+
     public List<AttachmentDto> Attachments { get; set; } = new();
 }

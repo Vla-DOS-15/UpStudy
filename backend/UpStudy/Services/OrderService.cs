@@ -398,4 +398,76 @@ public class OrderService : IOrderService
 
         return await _s3Service.GetPresignedViewUrlAsync(attachment.S3Key);
     }
+    
+
+    public async Task SubmitForReviewAsync(Guid orderId, string executorId)
+    {
+        var order = await _context.Orders.Include(o => o.Chat).FirstOrDefaultAsync(o => o.Id == orderId);
+    
+        if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
+        if (order.ExecutorId != executorId) throw new UnauthorizedAccessException("Ви не виконавець цього замовлення");
+    
+        if (order.Status != OrderStatus.InProgress)
+            throw new InvalidOperationException("Здати роботу можна тільки зі статусу 'В роботі'.");
+
+        order.Status = OrderStatus.Review;
+    
+        // Системне повідомлення в чат
+        if (order.Chat != null)
+        {
+            await _chatService.SendSystemMessageAsync(order.Id, "✅ Виконавець позначив роботу як виконану. Очікується перевірка замовником.");
+        }
+
+        await _context.SaveChangesAsync();
+    }
+    
+    public async Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId)
+    {
+        var order = await _context.Orders
+            .AsNoTracking() // Важливо для GET запитів (швидкодія)
+            .Include(o => o.Client)
+            .Include(o => o.Discipline)
+            .Include(o => o.WorkType)
+            .Include(o => o.Attachments)
+            .FirstOrDefaultAsync(o => o.Id == orderId);
+
+        if (order == null) return null;
+
+        // Формуємо список файлів з посиланнями
+        var attachmentDtos = new List<AttachmentDto>();
+        foreach (var att in order.Attachments)
+        {
+            attachmentDtos.Add(new AttachmentDto
+            {
+                Id = att.Id,
+                OriginalFileName = att.OriginalFileName,
+                // Генеруємо тимчасові посилання (на 60 хвилин)
+                ViewUrl = await _s3Service.GetPresignedViewUrlAsync(att.S3Key, expirationMinutes: 60),
+                DownloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(att.S3Key, expirationMinutes: 60),
+                UploadedAt = att.UploadedAt,
+                IsResultWork = att.IsResultWork
+            });
+        }
+
+        // Мапимо відповідь
+        return new OrderResponseDto
+        {
+            Id = order.Id,
+            Title = order.Title,
+            Description = order.Description,
+            Price = order.Price,
+            IsNegotiable = order.IsNegotiable,
+            Deadline = order.Deadline,
+            CreatedAt = order.CreatedAt,
+            Status = order.Status.ToString(),
+        
+            DisciplineName = order.Discipline?.Name ?? "Не вказано",
+            WorkTypeName = order.WorkType?.Name ?? "Не вказано",
+            ClientName = order.Client != null ? $"{order.Client.FirstName} {order.Client.LastName}" : "Невідомий",
+            ClientId = order.ClientId,
+            ExecutorId = order.ExecutorId,
+
+            Attachments = attachmentDtos
+        };
+    }
 }

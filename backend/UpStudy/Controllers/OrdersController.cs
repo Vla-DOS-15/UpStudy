@@ -75,11 +75,15 @@ public class OrdersController : ControllerBase
         }
     }
 
-    // Заглушка для CreatedAtAction (реалізуємо пізніше Use Case 1.4/2.2)
     [HttpGet("{id}")]
-    public IActionResult GetOrderById(Guid id)
+    public async Task<IActionResult> GetOrderById(Guid id)
     {
-        return Ok(new { Message = "Метод отримання замовлення ще в розробці", OrderId = id });
+        var orderDto = await _orderService.GetOrderByIdAsync(id);
+
+        if (orderDto == null) 
+            return NotFound("Замовлення не знайдено");
+
+        return Ok(orderDto);
     }
     
     // --- 2.1 PUT: Редагування замовлення ---
@@ -247,6 +251,23 @@ public class OrdersController : ControllerBase
         catch (Exception ex)
         {
             return StatusCode(500, ex.Message);
+        }
+    }
+    
+    
+    [HttpPost("{id}/submit-review")]
+    [Authorize]
+    public async Task<IActionResult> SubmitForReview(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        try 
+        {
+            await _orderService.SubmitForReviewAsync(id, userId!);
+            return Ok(new { Message = "Роботу відправлено на перевірку" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Error = ex.Message });
         }
     }
 }

@@ -17,6 +17,12 @@ public class AppUser : IdentityUser
     public bool IsFop { get; set; } = false;
     
     public string? AvatarS3Key { get; set; }
+    
+    public bool IsVerified { get; set; } = false;
+    public bool IsVerificationPending { get; set; } = false;    
+    public string? VerificationRejectReason { get; set; }
+    public string? PassportS3Key { get; set; }
+    public string? DiplomaS3Key { get; set; }
 
     public List<RefreshTokenInfo> RefreshTokens { get; set; } = new();
 

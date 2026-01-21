@@ -1,6 +1,6 @@
 // services/authService.ts
 import api from '@/lib/axios';
-import { LoginDto, RegisterDto, AuthResponse } from '@/types';
+import { LoginDto, RegisterDto, AuthResponse, RefreshTokenDto } from '@/types';
 
 export const authService = {
   async login(data: LoginDto) {
@@ -24,5 +24,10 @@ export const authService = {
      // Тимчасово повертаємо null або реалізуй endpoint
      // return api.get<User>('/Account/me'); 
      return null; 
-  }
+  },
+
+  async refreshToken(data: RefreshTokenDto) {
+    const response = await api.post<AuthResponse>('/Auth/refresh-token', data);
+    return response.data;
+  },
 };

@@ -15,4 +15,7 @@ public interface IOrderService
     Task LeaveReviewAsync(Guid orderId, string clientId, CreateReviewDto dto);
     
     Task<PagedResult<OrderPreviewDto>> SearchOrdersAsync(SearchOrdersQuery query);
+
+    Task SubmitForReviewAsync(Guid orderId, string executorId);
+    Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId);
 }
