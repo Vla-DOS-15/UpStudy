@@ -18,4 +18,5 @@ public interface IOrderService
 
     Task SubmitForReviewAsync(Guid orderId, string executorId);
     Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId);
+    Task<List<OrderPreviewDto>> GetUserOrdersAsync(string userId);
 }

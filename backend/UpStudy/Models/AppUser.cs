@@ -23,6 +23,8 @@ public class AppUser : IdentityUser
     public string? VerificationRejectReason { get; set; }
     public string? PassportS3Key { get; set; }
     public string? DiplomaS3Key { get; set; }
+    public double Rating { get; set; } = 0;
+    public int CompletedOrdersCount { get; set; } = 0;
 
     public List<RefreshTokenInfo> RefreshTokens { get; set; } = new();
 

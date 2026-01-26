@@ -270,4 +270,22 @@ public class OrdersController : ControllerBase
             return BadRequest(new { Error = ex.Message });
         }
     }
+    
+    [HttpGet("my-orders")]
+    [Authorize]
+    public async Task<IActionResult> GetMyOrders()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            var orders = await _orderService.GetUserOrdersAsync(userId);
+            return Ok(orders);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 }

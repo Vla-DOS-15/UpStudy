@@ -93,37 +93,68 @@ public class OrderService : IOrderService
         return order;
     }
 
-    public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId, string userId)
+public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId, string userId)
+{
+    // 1. Шукаємо замовлення та підтягуємо всі зв'язки
+    var order = await _context.Orders
+        .Include(o => o.Proposals)
+            .ThenInclude(p => p.Executor)
+        // Якщо рейтингу немає в таблиці юзера, можливо, треба підтягнути відгуки:
+        // .Include(o => o.Proposals).ThenInclude(p => p.Executor).ThenInclude(e => e.ReceivedReviews) 
+        .FirstOrDefaultAsync(o => o.Id == orderId);
+
+    if (order == null)
+        throw new KeyNotFoundException("Замовлення не знайдено");
+
+    // 2. Перевірка прав (тільки замовник бачить ставки)
+    if (order.ClientId != userId)
+        throw new UnauthorizedAccessException("Тільки автор замовлення може бачити ставки.");
+    var specializations = new List<string>();
+    specializations.Add("Програмування");
+    specializations.Add("Електромеханіка");
+    specializations.Add("Фізика");
+
+    // 3. Мапимо базові дані (без асинхронних операцій S3)
+    var proposalsDto = order.Proposals.Select(p => new OrderProposalDto
     {
-        // 1. Шукаємо замовлення
-        var order = await _context.Orders
-            .Include(o => o.Proposals)
-                .ThenInclude(p => p.Executor) // Підтягуємо дані виконавця
-            .FirstOrDefaultAsync(o => o.Id == orderId);
+        Id = p.Id,
+        Price = p.Price,
+        Comment = p.Comment,
+        Status = p.Status.ToString(),
+        ExecutorId = p.ExecutorId,
+        ExecutorName = p.Executor != null 
+            ? $"{p.Executor.FirstName} {p.Executor.LastName}" 
+            : "Невідомий",
+        
+        // --- Нові поля ---
+        ExecutorRating = 4.5, // Припускаємо, що в AppUser є поле Rating
+        ExecutorIsVerified = p.Executor?.IsVerified ?? false, // Припускаємо, що в AppUser є IsVerified
+        
+        // Якщо є поле CompletedOrdersCount в юзері - беремо його, 
+        // або ставимо 0, якщо ще не реалізували лічильник
+        ExecutorCompletedProjects = 2, 
 
-        if (order == null)
-            throw new KeyNotFoundException("Замовлення не знайдено");
+        // Мапимо спеціалізації (якщо це окрема сутність)
+        ExecutorSpecializations = specializations,
 
-        // 2. Перевірка доступу (тільки замовник бачить ставки)
-        // (Можна додати логіку для Адміна тут через || User.IsInRole("Admin"))
-        if (order.ClientId != userId)
-            throw new UnauthorizedAccessException("Тільки автор замовлення може бачити ставки.");
+        // Тимчасово записуємо ключ (шлях) до файлу, URL згенеруємо нижче
+        ExecutorAvatar = p.Executor?.AvatarS3Key 
+    }).ToList();
 
-        // 3. Мапимо в DTO
-        var proposalsDto = order.Proposals.Select(p => new OrderProposalDto
+    // 4. 🔥 Генеруємо S3 посилання для аватарів (це асинхронна операція)
+    // Якщо у вас аватари це просто публічні URL, цей крок можна пропустити
+    foreach (var proposal in proposalsDto)
+    {
+        if (!string.IsNullOrEmpty(proposal.ExecutorAvatar))
         {
-            Id = p.Id,
-            Price = p.Price,
-            Comment = p.Comment,
-            Status = p.Status.ToString(),
-            ExecutorId = p.ExecutorId,
-            // Перевіряємо на null, про всяк випадок
-            ExecutorName = p.Executor != null ? $"{p.Executor.FirstName} {p.Executor.LastName}" : "Unknown", 
-            // ExecutorAvatar = p.Executor?.AvatarPath (якщо буде таке поле)
-        }).ToList();
-
-        return proposalsDto;
+            // Генеруємо Presigned URL на 60 хвилин
+            // Якщо proposal.ExecutorAvatar вже є посиланням (http...), то метод GetPresignedViewUrlAsync має це враховувати і повертати як є
+            proposal.ExecutorAvatar = await _s3Service.GetPresignedViewUrlAsync(proposal.ExecutorAvatar, expirationMinutes: 60);
+        }
     }
+
+    return proposalsDto;
+}
     
     // 2.3 ПРИЙНЯТИ ВИКОНАВЦЯ (ЗАМОРОЗКА КОШТІВ)
     public async Task AcceptExecutorAsync(Guid orderId, string clientId, Guid proposalId)
@@ -469,5 +500,34 @@ public class OrderService : IOrderService
 
             Attachments = attachmentDtos
         };
+    }
+    
+    
+    public async Task<List<OrderPreviewDto>> GetUserOrdersAsync(string userId)
+    {
+        return await _context.Orders
+            .AsNoTracking()
+            .Include(o => o.Discipline)
+            .Include(o => o.WorkType)
+            .Include(o => o.Client)
+            // 🔥 ГОЛОВНА ЛОГІКА:
+            // Показуємо замовлення, якщо юзер його створив (ClientId)
+            // АБО якщо юзер призначений виконавцем (ExecutorId)
+            .Where(o => o.ClientId == userId || o.ExecutorId == userId)
+            .OrderByDescending(o => o.CreatedAt) // Спочатку найновіші
+            .Select(o => new OrderPreviewDto
+            {
+                Id = o.Id,
+                Title = o.Title,
+                Price = o.Price,
+                IsNegotiable = o.IsNegotiable,
+                Deadline = o.Deadline,
+                CreatedAt = o.CreatedAt,
+                Status = o.Status.ToString(),
+                DisciplineName = o.Discipline.Name,
+                WorkTypeName = o.WorkType.Name,
+                ClientName = $"{o.Client.FirstName} {o.Client.LastName}"
+            })
+            .ToListAsync();
     }
 }

@@ -1,9 +1,18 @@
 // lib/axios.ts
 import axios from 'axios';
 import Cookies from 'js-cookie';
+import https from 'https'; // <--- 1. Імпортуємо https
+
+// <--- 2. Створюємо агент для ігнорування SSL помилок (тільки для Node.js середовища)
+const httpsAgent = new https.Agent({
+  // У режимі development дозволяємо самопідписані сертифікати (false),
+  // у production перевіряємо суворо (true)
+  rejectUnauthorized: process.env.NODE_ENV === 'production',
+});
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
+  httpsAgent, // <--- 3. Додаємо агент сюди
   headers: {
     'Content-Type': 'application/json',
   },
@@ -42,6 +51,9 @@ api.interceptors.response.use(
           {
             accessToken: oldAccessToken,
             refreshToken: oldRefreshToken,
+          },
+          {
+            httpsAgent // <--- 4. ВАЖЛИВО: Додаємо агент і сюди, щоб рефреш працював на сервері
           }
         );
 
@@ -66,8 +78,10 @@ api.interceptors.response.use(
         Cookies.remove('accessToken');
         Cookies.remove('refreshToken');
         
-        // Редірект на логін
-        window.location.href = '/'; 
+        // Редірект на логін (працює тільки в браузері)
+        if (typeof window !== 'undefined') {
+            window.location.href = '/'; 
+        }
         return Promise.reject(refreshError);
       }
     }

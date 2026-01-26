@@ -17,6 +17,7 @@ public class OrderResponseDto
     public string ClientName { get; set; } = string.Empty;
     public string ClientId { get; set; } = string.Empty; // Корисно для посилання на профіль
     public string? ExecutorId { get; set; } // Щоб знати, чи є вже виконавець
+    public int ViewsCount { get; set; }
 
     public List<AttachmentDto> Attachments { get; set; } = new();
 }
