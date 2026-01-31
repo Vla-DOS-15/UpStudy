@@ -12,7 +12,9 @@ public class OrderResponseDto
     public string Status { get; set; } = string.Empty;
 
     // Додані поля для відображення деталей (оскільки ми робимо Include)
+    public int DisciplineId { get; set; }
     public string DisciplineName { get; set; } = string.Empty;
+    public int WorkTypeId { get; set; }
     public string WorkTypeName { get; set; } = string.Empty;
     public string ClientName { get; set; } = string.Empty;
     public string ClientId { get; set; } = string.Empty; // Корисно для посилання на профіль

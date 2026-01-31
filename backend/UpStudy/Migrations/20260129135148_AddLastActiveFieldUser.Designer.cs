@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using UpStudy.Models;
@@ -11,9 +12,11 @@ using UpStudy.Models;
 namespace UpStudy.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260129135148_AddLastActiveFieldUser")]
+    partial class AddLastActiveFieldUser
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -275,14 +278,10 @@ namespace UpStudy.Migrations
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("ParticipantId")
-                        .HasColumnType("text");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("OrderId");
-
-                    b.HasIndex("ParticipantId");
+                    b.HasIndex("OrderId")
+                        .IsUnique();
 
                     b.ToTable("Chats");
                 });
@@ -733,19 +732,12 @@ namespace UpStudy.Migrations
             modelBuilder.Entity("UpStudy.Models.Chat", b =>
                 {
                     b.HasOne("UpStudy.Models.Order", "Order")
-                        .WithMany("Chats")
-                        .HasForeignKey("OrderId")
+                        .WithOne("Chat")
+                        .HasForeignKey("UpStudy.Models.Chat", "OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("UpStudy.Models.AppUser", "Participant")
-                        .WithMany()
-                        .HasForeignKey("ParticipantId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Order");
-
-                    b.Navigation("Participant");
                 });
 
             modelBuilder.Entity("UpStudy.Models.ChatAttachment", b =>
@@ -953,7 +945,7 @@ namespace UpStudy.Migrations
                 {
                     b.Navigation("Attachments");
 
-                    b.Navigation("Chats");
+                    b.Navigation("Chat");
 
                     b.Navigation("PaymentRequests");
 

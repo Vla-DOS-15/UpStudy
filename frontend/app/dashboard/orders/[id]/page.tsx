@@ -13,7 +13,7 @@ export default function OrderPage() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  
+
   const [order, setOrder] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -53,10 +53,17 @@ export default function OrderPage() {
         <ArrowLeft className="w-4 h-4" /> Назад до списку
       </Button>
 
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Деталі замовлення</h1>
+        <Button onClick={() => router.push(`/dashboard/chat/${id}`)} className="gap-2">
+          Відкрити чат
+        </Button>
+      </div>
+
       {/* Використовуємо наш новий компонент */}
-      <OrderDetailsCard 
-        userRole={userRole} 
-        order={order} 
+      <OrderDetailsCard
+        userRole={userRole}
+        order={order}
       />
     </div>
   );

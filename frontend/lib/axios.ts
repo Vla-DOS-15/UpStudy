@@ -18,6 +18,21 @@ const api = axios.create({
   },
 });
 
+// Queue to handle concurrent refreshes
+let isRefreshing = false;
+let failedQueue: any[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 // Інтерцептор запиту: Додаємо токен
 api.interceptors.request.use((config) => {
   const token = Cookies.get('accessToken');
@@ -35,21 +50,34 @@ api.interceptors.response.use(
 
     // Якщо помилка 401 і ми ще не пробували оновити токен для цього запиту
     if (error.response?.status === 401 && !originalRequest._retry) {
+
+      if (isRefreshing) {
+        return new Promise(function (resolve, reject) {
+          failedQueue.push({ resolve, reject });
+        }).then(token => {
+          originalRequest.headers['Authorization'] = 'Bearer ' + token;
+          return api(originalRequest);
+        }).catch(err => {
+          return Promise.reject(err);
+        });
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
         const oldAccessToken = Cookies.get('accessToken');
         const oldRefreshToken = Cookies.get('refreshToken');
 
-        if (!oldAccessToken || !oldRefreshToken) {
-          throw new Error('No tokens found');
+        if (!oldRefreshToken) {
+          throw new Error('No refresh token available');
         }
 
         // ВАЖЛИВО: Використовуємо чистий axios, щоб уникнути зациклення інтерцепторів
         const response = await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL || 'https://localhost:7255/api'}/Auth/refresh-token`,
           {
-            accessToken: oldAccessToken,
+            accessToken: oldAccessToken || '', // Pass empty string if missing, backend might need it
             refreshToken: oldRefreshToken,
           },
           {
@@ -65,22 +93,33 @@ api.interceptors.response.use(
           Cookies.set('refreshToken', refreshToken);
 
           // 2. Оновлюємо заголовок в оригінальному запиті
+          api.defaults.headers.common['Authorization'] = 'Bearer ' + accessToken; // Update default header just in case
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+
+          // Process queued requests
+          processQueue(null, accessToken);
+          isRefreshing = false;
 
           // 3. Повторюємо оригінальний запит з новим токеном
           return api(originalRequest);
+        } else {
+          // Server returned 200 but isSuccess is false (e.g. invalid refresh token)
+          throw new Error(response.data?.message || 'Refresh failed via backend response');
         }
       } catch (refreshError) {
         // Якщо оновити не вдалося (токен протух або невалідний)
         console.error('Refresh token failed:', refreshError);
-        
+
+        processQueue(refreshError, null);
+        isRefreshing = false;
+
         // Чистимо куки
         Cookies.remove('accessToken');
         Cookies.remove('refreshToken');
-        
+
         // Редірект на логін (працює тільки в браузері)
         if (typeof window !== 'undefined') {
-            window.location.href = '/'; 
+          window.location.href = '/';
         }
         return Promise.reject(refreshError);
       }

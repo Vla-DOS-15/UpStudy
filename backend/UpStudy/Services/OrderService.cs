@@ -93,6 +93,28 @@ public class OrderService : IOrderService
         return order;
     }
 
+    public async Task DeleteOrderAsync(Guid id, string userId)
+    {
+        var order = await _context.Orders.Include(o => o.Proposals).FirstOrDefaultAsync(o => o.Id == id);
+        
+        if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
+        
+        if (order.ClientId != userId) 
+            throw new UnauthorizedAccessException("Ви не можете видалити чуже замовлення");
+            
+        if (order.Status != OrderStatus.New) 
+            throw new InvalidOperationException("Можна видаляти тільки нові замовлення. Це замовлення вже в роботі або завершене.");
+
+        // Можна також перевіряти наявність ставок, якщо видалення заборонено при ставках:
+        // if (order.Proposals.Any()) throw new InvalidOperationException("Не можна видалити замовлення, на яке вже є ставки.");
+        // Але ТЗ цього не вимагало строго, проте логічно дозволити видалити, якщо ще нікого не обрано.
+        // Якщо є ставки, вони каскадно видаляться або залишаться? 
+        // Припустимо, що видаляємо все.
+
+        _context.Orders.Remove(order);
+        await _context.SaveChangesAsync();
+    }
+
 public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId, string userId)
 {
     // 1. Шукаємо замовлення та підтягуємо всі зв'язки
@@ -228,7 +250,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
     // 2.5
     public async Task RequestRevisionAsync(Guid orderId, string clientId, string comment)
     {
-        var order = await _context.Orders.Include(o => o.Chat).FirstOrDefaultAsync(o => o.Id == orderId);
+        var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
         if (order == null) throw new KeyNotFoundException();
         if (order.ClientId != clientId) throw new UnauthorizedAccessException();
         
@@ -236,25 +258,16 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             throw new InvalidOperationException("Тільки статус 'Перевірка' дозволяє відправити на доопрацювання.");
 
         order.Status = OrderStatus.InProgress;
-
-        if (order.Chat != null)
-        {
-            _context.ChatMessages.Add(new ChatMessage
-            {
-                ChatId = order.Chat.Id,
-                SenderId = clientId,
-                Text = $"[СИСТЕМА] Повернуто на доопрацювання. Коментар: {comment}",
-                SentAt = DateTime.UtcNow,
-                IsSystem = true
-            });
-        }
         await _context.SaveChangesAsync();
+        
+        await _chatService.SendSystemMessageAsync(order.Id, $"Повернуто на доопрацювання. Коментар: {comment}");
     }
 
     // 2.6 ВІДКРИТИ СПІР
     public async Task OpenDisputeAsync(Guid orderId, string clientId)
     {
-        var order = await _context.Orders.Include(o => o.Chat).FirstOrDefaultAsync(o => o.Id == orderId);
+        // Include Chats to set IsManagerJoined if needed
+        var order = await _context.Orders.Include(o => o.Chats).FirstOrDefaultAsync(o => o.Id == orderId);
         if (order == null) throw new KeyNotFoundException();
         if (order.ClientId != clientId) throw new UnauthorizedAccessException();
 
@@ -263,19 +276,16 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
 
         order.Status = OrderStatus.Dispute;
 
-        if (order.Chat != null)
+        // Try to find the chat with the active executor
+        var activeChat = order.Chats.FirstOrDefault(c => c.ParticipantId == order.ExecutorId);
+        if (activeChat != null)
         {
-            order.Chat.IsManagerJoined = true;
-            _context.ChatMessages.Add(new ChatMessage
-            {
-                ChatId = order.Chat.Id,
-                SenderId = clientId,
-                Text = "[СИСТЕМА] Відкрито Арбітраж. Менеджер приєднається найближчим часом.",
-                SentAt = DateTime.UtcNow,
-                IsSystem = true
-            });
+            activeChat.IsManagerJoined = true;
         }
+
         await _context.SaveChangesAsync();
+        
+        await _chatService.SendSystemMessageAsync(order.Id, "Відкрито Арбітраж. Менеджер приєднається найближчим часом.");
     }
     
     
@@ -339,6 +349,14 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
         // При пошуку важливо: якщо замовлення має статус New, але вже має ExecutorId (чекає оплати комісії),
         // його, мабуть, не варто показувати в пошуку для інших виконавців.
         dbQuery = dbQuery.Where(o => o.ExecutorId == null);
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.Trim().ToLower();
+            dbQuery = dbQuery.Where(o => 
+                o.Title.ToLower().Contains(search) || 
+                o.Description.ToLower().Contains(search));
+        }
 
         if (query.DisciplineId.HasValue)
             dbQuery = dbQuery.Where(o => o.DisciplineId == query.DisciplineId.Value);
@@ -433,7 +451,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
 
     public async Task SubmitForReviewAsync(Guid orderId, string executorId)
     {
-        var order = await _context.Orders.Include(o => o.Chat).FirstOrDefaultAsync(o => o.Id == orderId);
+        var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
     
         if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
         if (order.ExecutorId != executorId) throw new UnauthorizedAccessException("Ви не виконавець цього замовлення");
@@ -442,14 +460,10 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             throw new InvalidOperationException("Здати роботу можна тільки зі статусу 'В роботі'.");
 
         order.Status = OrderStatus.Review;
+        await _context.SaveChangesAsync();
     
         // Системне повідомлення в чат
-        if (order.Chat != null)
-        {
-            await _chatService.SendSystemMessageAsync(order.Id, "✅ Виконавець позначив роботу як виконану. Очікується перевірка замовником.");
-        }
-
-        await _context.SaveChangesAsync();
+        await _chatService.SendSystemMessageAsync(order.Id, "✅ Виконавець позначив роботу як виконану. Очікується перевірка замовником.");
     }
     
     public async Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId)
@@ -492,7 +506,9 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             CreatedAt = order.CreatedAt,
             Status = order.Status.ToString(),
         
+            DisciplineId = order.DisciplineId,
             DisciplineName = order.Discipline?.Name ?? "Не вказано",
+            WorkTypeId = order.WorkTypeId,
             WorkTypeName = order.WorkType?.Name ?? "Не вказано",
             ClientName = order.Client != null ? $"{order.Client.FirstName} {order.Client.LastName}" : "Невідомий",
             ClientId = order.ClientId,
@@ -526,7 +542,9 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 Status = o.Status.ToString(),
                 DisciplineName = o.Discipline.Name,
                 WorkTypeName = o.WorkType.Name,
-                ClientName = $"{o.Client.FirstName} {o.Client.LastName}"
+                ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
+                ClientId = o.ClientId,
+                ExecutorId = o.ExecutorId
             })
             .ToListAsync();
     }

@@ -27,7 +27,7 @@ public class AdminService : IAdminService
             .Select(u => new UserPreviewDto
             {
                 Id = u.Id,
-                Email = u.Email,
+                Email = u.Email ?? string.Empty,
                 FullName = $"{u.FirstName} {u.LastName}",
                 RegisteredAt = DateTime.UtcNow // Якщо є таке поле
             })

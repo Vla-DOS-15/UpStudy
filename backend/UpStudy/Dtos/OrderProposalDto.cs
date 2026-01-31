@@ -4,10 +4,10 @@ public class OrderProposalDto
 {
     public Guid Id { get; set; }
     public decimal Price { get; set; }
-    public string Comment { get; set; }
-    public string Status { get; set; }
-    public string ExecutorId { get; set; }
-    public string ExecutorName { get; set; }
+    public required string Comment { get; set; }
+    public required string Status { get; set; }
+    public required string ExecutorId { get; set; }
+    public required string ExecutorName { get; set; }
     
     public string? ExecutorAvatar { get; set; }       // URL аватара
     public double ExecutorRating { get; set; }        // Середній рейтинг (наприклад, 4.9)

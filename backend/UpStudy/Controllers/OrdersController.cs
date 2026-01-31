@@ -121,6 +121,38 @@ public class OrdersController : ControllerBase
         }
     }
 
+    // --- 2.1.1 DELETE: Видалення замовлення ---
+    [HttpDelete("{id}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteOrder(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            await _orderService.DeleteOrderAsync(id, userId);
+            
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound("Замовлення не знайдено");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Помилка сервера: {ex.Message}");
+        }
+    }
+
     // --- 2.2 GET: Список ставок для замовлення ---
     [HttpGet("{id}/proposals")]
     [Authorize]

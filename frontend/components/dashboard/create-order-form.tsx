@@ -59,14 +59,15 @@ interface DictionaryItem {
 interface CreateOrderFormProps {
   disciplines: DictionaryItem[];
   workTypes: DictionaryItem[];
+  editId?: string;
 }
 
-export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps) {
+export function CreateOrderForm({ disciplines, workTypes, editId }: CreateOrderFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [files, setFiles] = useState<FileList | null>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  
+
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -81,6 +82,41 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
 
   const isNegotiable = form.watch('isNegotiable');
 
+  // Fetch data if editId is present
+  useEffect(() => {
+    if (editId) {
+      const fetchOrder = async () => {
+        try {
+          setIsLoading(true);
+          const data = await orderService.getOrderById(editId);
+          console.log("DEBUG: Fetched Order Data:", data);
+          console.log("DEBUG: DisciplineId:", data.disciplineId, typeof data.disciplineId);
+          console.log("DEBUG: WorkTypeId:", data.workTypeId, typeof data.workTypeId);
+
+          // Map API data to Form values
+          const formData = {
+            title: data.title,
+            description: data.description,
+            isNegotiable: data.isNegotiable,
+            disciplineId: data.disciplineId?.toString() || "", // Safely convert to string
+            workTypeId: data.workTypeId?.toString() || "",     // Safely convert to string
+            price: data.price,
+            deadline: new Date(data.deadline),
+          };
+          console.log("DEBUG: Setting Form Data:", formData);
+
+          form.reset(formData);
+        } catch (err) {
+          console.error(err);
+          toast.error("Не вдалося завантажити дані замовлення");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchOrder();
+    }
+  }, [editId, form]);
+
   async function onSubmit(values: OrderFormValues) {
     if (!values.isNegotiable && (!values.price || values.price <= 0)) {
       form.setError('price', { message: 'Вкажіть бюджет або оберіть "Договірна"' });
@@ -89,24 +125,34 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
 
     try {
       setIsLoading(true);
-      
-      // Відправляємо як рядки. .NET сам перетворить "1" -> 1 (int)
-      await orderService.create({
-        ...values,
-        disciplineId: values.disciplineId,
-        workTypeId: values.workTypeId,
-        files: files, 
-      });
 
-      toast.success('Замовлення створено!');
+      if (editId) {
+        await orderService.update(editId, {
+          ...values,
+          disciplineId: Number(values.disciplineId),
+          workTypeId: Number(values.workTypeId),
+          // Files logic for update is complex, skipping for now as per plan
+        });
+        toast.success('Замовлення оновлено!');
+      } else {
+        // Відправляємо як рядки. .NET сам перетворить "1" -> 1 (int)
+        await orderService.create({
+          ...values,
+          disciplineId: values.disciplineId,
+          workTypeId: values.workTypeId,
+          files: files,
+        });
+        toast.success('Замовлення створено!');
+      }
+
       router.push('/dashboard/orders');
       router.refresh();
     } catch (error: any) {
       console.error("Повна помилка:", error); // Дивіться в консоль браузера (F12)
-      
+
       // Спроба дістати конкретне повідомлення про помилку з бекенду
       let errorMessage = 'Не вдалося створити замовлення.';
-      
+
       if (error.response?.data?.errors) {
         // Якщо це ValidationProblemDetails (стандарт .NET)
         // Беремо першу помилку з об'єкта errors
@@ -116,7 +162,7 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
         errorMessage = error.response.data;
       }
 
-      toast.error('Помилка створення', {
+      toast.error('Помилка', {
         description: errorMessage,
       });
     } finally {
@@ -127,7 +173,7 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        
+
         {/* Title */}
         <FormField
           control={form.control}
@@ -151,7 +197,7 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Дисципліна</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Оберіть предмет" />
@@ -184,7 +230,7 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Тип роботи</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Оберіть тип" />
@@ -213,7 +259,7 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
 
         {/* Решта форми (Дедлайн, Опис, Ціна) без змін... */}
         {/* ... (скопіюйте код нижче) ... */}
-        
+
         <FormField
           control={form.control}
           name="deadline"
@@ -245,7 +291,7 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
                           if (date) {
                             const newDate = field.value ? new Date(field.value) : new Date(date);
                             newDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
-                            if(!field.value) newDate.setHours(23, 59, 0);
+                            if (!field.value) newDate.setHours(23, 59, 0);
                             field.onChange(newDate);
                           }
                           setDatePickerOpen(false);
@@ -257,17 +303,17 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
                   </Popover>
                 </div>
                 <div className="w-32">
-                   <Input
+                  <Input
                     type="time"
                     value={field.value ? format(field.value, "HH:mm") : ""}
                     onChange={(e) => {
-                        const [h, m] = e.target.value.split(':').map(Number);
-                        const newDate = field.value ? new Date(field.value) : new Date();
-                        newDate.setHours(h || 0);
-                        newDate.setMinutes(m || 0);
-                        field.onChange(newDate);
+                      const [h, m] = e.target.value.split(':').map(Number);
+                      const newDate = field.value ? new Date(field.value) : new Date();
+                      newDate.setHours(h || 0);
+                      newDate.setMinutes(m || 0);
+                      field.onChange(newDate);
                     }}
-                   />
+                  />
                 </div>
               </div>
               <FormMessage />
@@ -301,13 +347,13 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
               <FormItem className="flex-1">
                 <FormLabel>Бюджет (грн)</FormLabel>
                 <FormControl>
-                  <Input 
-                    type="number" 
-                    placeholder="1500" 
-                    {...field} 
-                    value={field.value || ''} 
+                  <Input
+                    type="number"
+                    placeholder="1500"
+                    {...field}
+                    value={field.value || ''}
                     onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                    disabled={isNegotiable} 
+                    disabled={isNegotiable}
                   />
                 </FormControl>
                 <FormMessage />
@@ -344,11 +390,11 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
                   <span className="font-semibold">Натисніть</span> щоб завантажити файли
                 </p>
               </div>
-              <input 
-                id="dropzone-file" 
-                type="file" 
-                className="hidden" 
-                multiple 
+              <input
+                id="dropzone-file"
+                type="file"
+                className="hidden"
+                multiple
                 onChange={(e) => setFiles(e.target.files)}
               />
             </label>
@@ -362,7 +408,7 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
 
         <Button type="submit" size="lg" disabled={isLoading} className="w-full sm:w-auto">
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Опублікувати замовлення
+          {editId ? 'Зберегти зміни' : 'Опублікувати замовлення'}
         </Button>
       </form>
     </Form>

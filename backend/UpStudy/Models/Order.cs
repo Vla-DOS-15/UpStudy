@@ -44,7 +44,7 @@ public class Order
 
     // Навігація
     public List<OrderProposal> Proposals { get; set; } = new();
-    public Chat? Chat { get; set; } 
+    public ICollection<Chat> Chats { get; set; } = new List<Chat>(); 
     public Review? Review { get; set; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
