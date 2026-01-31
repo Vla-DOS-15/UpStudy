@@ -165,12 +165,21 @@ namespace UpStudy.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("AvatarS3Key")
+                        .HasColumnType("text");
+
                     b.Property<string>("BankCardNumber")
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
+                    b.Property<int>("CompletedOrdersCount")
+                        .HasColumnType("integer");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DiplomaS3Key")
                         .HasColumnType("text");
 
                     b.Property<string>("Email")
@@ -186,6 +195,15 @@ namespace UpStudy.Migrations
 
                     b.Property<bool>("IsFop")
                         .HasColumnType("boolean");
+
+                    b.Property<bool>("IsVerificationPending")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("LastActive")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("LastName")
                         .IsRequired()
@@ -205,6 +223,9 @@ namespace UpStudy.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<string>("PassportS3Key")
+                        .HasColumnType("text");
+
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text");
 
@@ -213,6 +234,9 @@ namespace UpStudy.Migrations
 
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean");
+
+                    b.Property<double>("Rating")
+                        .HasColumnType("double precision");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
@@ -223,6 +247,9 @@ namespace UpStudy.Migrations
                     b.Property<string>("UserName")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<string>("VerificationRejectReason")
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -248,10 +275,14 @@ namespace UpStudy.Migrations
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ParticipantId")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("OrderId")
-                        .IsUnique();
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("ParticipantId");
 
                     b.ToTable("Chats");
                 });
@@ -265,11 +296,11 @@ namespace UpStudy.Migrations
                     b.Property<Guid>("ChatMessageId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("FilePath")
+                    b.Property<string>("OriginalFileName")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("OriginalFileName")
+                    b.Property<string>("S3Key")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -454,10 +485,6 @@ namespace UpStudy.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("FilePath")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<bool>("IsResultWork")
                         .HasColumnType("boolean");
 
@@ -465,6 +492,10 @@ namespace UpStudy.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("S3Key")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -702,12 +733,19 @@ namespace UpStudy.Migrations
             modelBuilder.Entity("UpStudy.Models.Chat", b =>
                 {
                     b.HasOne("UpStudy.Models.Order", "Order")
-                        .WithOne("Chat")
-                        .HasForeignKey("UpStudy.Models.Chat", "OrderId")
+                        .WithMany("Chats")
+                        .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("UpStudy.Models.AppUser", "Participant")
+                        .WithMany()
+                        .HasForeignKey("ParticipantId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Order");
+
+                    b.Navigation("Participant");
                 });
 
             modelBuilder.Entity("UpStudy.Models.ChatAttachment", b =>
@@ -915,7 +953,7 @@ namespace UpStudy.Migrations
                 {
                     b.Navigation("Attachments");
 
-                    b.Navigation("Chat");
+                    b.Navigation("Chats");
 
                     b.Navigation("PaymentRequests");
 

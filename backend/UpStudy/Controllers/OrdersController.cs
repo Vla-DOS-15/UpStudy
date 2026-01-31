@@ -11,10 +11,12 @@ namespace UpStudy.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
+    private readonly IS3Service _s3Service;
 
-    public OrdersController(IOrderService orderService)
+    public OrdersController(IOrderService orderService, IS3Service s3Service)
     {
         _orderService = orderService;
+        _s3Service = s3Service;
     }
 
     [HttpPost]
@@ -33,19 +35,36 @@ public class OrdersController : ControllerBase
         {
             var createdOrder = await _orderService.CreateOrderAsync(userId, dto);
 
+            // Генеруємо presigned URLs для всіх файлів
+            var attachmentDtos = new List<AttachmentDto>();
+            
+            foreach (var attachment in createdOrder.Attachments)
+            {
+                var viewUrl = await _s3Service.GetPresignedViewUrlAsync(attachment.S3Key, expirationMinutes: 60);
+                var downloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(attachment.S3Key, expirationMinutes: 60);
+                
+                attachmentDtos.Add(new AttachmentDto
+                {
+                    Id = attachment.Id,
+                    OriginalFileName = attachment.OriginalFileName,
+                    ViewUrl = viewUrl,
+                    DownloadUrl = downloadUrl,
+                    UploadedAt = attachment.UploadedAt,
+                    IsResultWork = attachment.IsResultWork
+                });
+            }
+
             var response = new OrderResponseDto
             {
                 Id = createdOrder.Id,
                 Title = createdOrder.Title,
                 Description = createdOrder.Description,
                 Price = createdOrder.Price,
+                IsNegotiable = createdOrder.IsNegotiable,
+                Deadline = createdOrder.Deadline,
                 Status = createdOrder.Status.ToString(),
-                Attachments = createdOrder.Attachments.Select(a => new AttachmentDto
-                {
-                    Id = a.Id,
-                    FilePath = a.FilePath,
-                    OriginalFileName = a.OriginalFileName
-                }).ToList()
+                CreatedAt = createdOrder.CreatedAt,
+                Attachments = attachmentDtos
             };
 
             return CreatedAtAction(nameof(GetOrderById), new { id = response.Id }, response);
@@ -56,11 +75,15 @@ public class OrdersController : ControllerBase
         }
     }
 
-    // Заглушка для CreatedAtAction (реалізуємо пізніше Use Case 1.4/2.2)
     [HttpGet("{id}")]
-    public IActionResult GetOrderById(Guid id)
+    public async Task<IActionResult> GetOrderById(Guid id)
     {
-        return Ok(new { Message = "Метод отримання замовлення ще в розробці", OrderId = id });
+        var orderDto = await _orderService.GetOrderByIdAsync(id);
+
+        if (orderDto == null) 
+            return NotFound("Замовлення не знайдено");
+
+        return Ok(orderDto);
     }
     
     // --- 2.1 PUT: Редагування замовлення ---
@@ -89,6 +112,38 @@ public class OrdersController : ControllerBase
             return Forbid(); // 403 Forbidden
         }
         catch (InvalidOperationException ex) // Порушення бізнес-правил (є ставки або не той статус)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Помилка сервера: {ex.Message}");
+        }
+    }
+
+    // --- 2.1.1 DELETE: Видалення замовлення ---
+    [HttpDelete("{id}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteOrder(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            await _orderService.DeleteOrderAsync(id, userId);
+            
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound("Замовлення не знайдено");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
         {
             return BadRequest(new { Error = ex.Message });
         }
@@ -224,6 +279,41 @@ public class OrdersController : ControllerBase
         {
             var result = await _orderService.SearchOrdersAsync(query);
             return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+    
+    
+    [HttpPost("{id}/submit-review")]
+    [Authorize]
+    public async Task<IActionResult> SubmitForReview(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        try 
+        {
+            await _orderService.SubmitForReviewAsync(id, userId!);
+            return Ok(new { Message = "Роботу відправлено на перевірку" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+    }
+    
+    [HttpGet("my-orders")]
+    [Authorize]
+    public async Task<IActionResult> GetMyOrders()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            var orders = await _orderService.GetUserOrdersAsync(userId);
+            return Ok(orders);
         }
         catch (Exception ex)
         {

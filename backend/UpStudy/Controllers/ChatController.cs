@@ -20,15 +20,22 @@ public class ChatController : ControllerBase
     }
 
     [HttpGet("{orderId}")]
-    public async Task<IActionResult> GetChatHistory(Guid orderId)
+    public async Task<IActionResult> GetChatHistory(Guid orderId, [FromQuery] string? candidateId = null)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
         try
         {
-            return Ok(await _chatService.GetMessagesAsync(orderId, userId));
+            return Ok(await _chatService.GetMessagesAsync(orderId, userId, candidateId));
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound("Чат не знайдено"); }
+    }
+
+    [HttpGet("user-status/{userId}")]
+    public async Task<IActionResult> GetUserStatus(string userId)
+    {
+         return Ok(await _chatService.GetUserLastActiveAsync(userId));
     }
 
     // 4.1 Надіслати текстове повідомлення (HTTP POST)
@@ -39,11 +46,11 @@ public class ChatController : ControllerBase
             return BadRequest("Повідомлення не може бути пустим");
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
 
         try
         {
-            // Викликаємо сервіс. Він збереже в БД і САМ надішле SignalR сповіщення
-            var messageDto = await _chatService.SaveMessageAsync(orderId, userId, dto.Text);
+            var messageDto = await _chatService.SaveMessageAsync(orderId, userId, dto.Text, dto.CandidateId);
             return Ok(messageDto);
         }
         catch (Exception ex)
@@ -53,15 +60,82 @@ public class ChatController : ControllerBase
     }
 
     [HttpPost("{orderId}/files")]
-    public async Task<IActionResult> UploadFile(Guid orderId, IFormFile file)
+    public async Task<IActionResult> UploadFile(Guid orderId, IFormFile file, [FromForm] string? candidateId = null)
     {
         if (file == null || file.Length == 0) return BadRequest("Файл не обрано");
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
 
         try
         {
-            // Сервіс збереже файл і САМ надішле SignalR сповіщення
-            var messageDto = await _chatService.SaveFileMessageAsync(orderId, userId, file);
+            var messageDto = await _chatService.SaveFileMessageAsync(orderId, userId, file, candidateId);
+            return Ok(messageDto);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+    [HttpPost("init")]
+    public async Task<IActionResult> InitChat([FromBody] InitChatDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        try
+        {
+            var chatId = await _chatService.GetChatIdAsync(dto.OrderId, userId, dto.CandidateId);
+            return Ok(new { chatId });
+        }
+        catch (Exception ex)
+        {
+             return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpGet("room/{chatId}")]
+    public async Task<IActionResult> GetChatRoom(Guid chatId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        try
+        {
+            return Ok(await _chatService.GetMessagesByChatIdAsync(chatId, userId));
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPost("room/{chatId}/messages")]
+    public async Task<IActionResult> SendMessageByChatId(Guid chatId, [FromBody] SendMessageDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Text))
+            return BadRequest("Повідомлення не може бути пустим");
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            // Note: dto.CandidateId is ignored here as ChatId defines the participants
+            var messageDto = await _chatService.SaveMessageByChatIdAsync(chatId, userId, dto.Text);
+            return Ok(messageDto);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpPost("room/{chatId}/files")]
+    public async Task<IActionResult> UploadFileByChatId(Guid chatId, IFormFile file)
+    {
+        if (file == null || file.Length == 0) return BadRequest("Файл не обрано");
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            var messageDto = await _chatService.SaveFileMessageByChatIdAsync(chatId, userId, file);
             return Ok(messageDto);
         }
         catch (Exception ex)

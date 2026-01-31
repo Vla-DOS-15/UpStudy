@@ -1,44 +1,14 @@
-import { Metadata } from 'next';
-import Link from 'next/link';
-import { format } from 'date-fns';
-import { uk } from 'date-fns/locale';
-import { 
-  PlusCircle, 
-  CalendarDays, 
-  Banknote, 
-  FileText, 
-  ArrowRight,
-  Clock
-} from 'lucide-react';
+import OrdersPageClient from './OrdersPageClient';
 
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-
-export const metadata: Metadata = {
-  title: 'Мої замовлення | UpStudy',
-  description: 'Список створених вами завдань',
+export const metadata = {
+  title: 'Замовлення | UpStudy',
+  description: 'Керування замовленнями та пошук роботи',
 };
 
-// Типи для статусу (відповідно до твого Enum на бекенді)
-type OrderStatus = 'New' | 'InProgress' | 'Review' | 'Completed' | 'Cancelled' | 'Dispute';
-
-// Інтерфейс замовлення (відповідає твоїй моделі)
-interface Order {
-  id: string;
-  title: string;
-  status: OrderStatus;
-  price?: number;
-  isNegotiable: boolean;
-  deadline: string;
-  discipline: string;
-  workType: string;
-  createdAt: string;
-  proposalsCount: number; // Кількість ставок
+export default function OrdersPage() {
+  return (
+    <div className="container mx-auto px-4 sm:px-6 py-6 pb-20">
+      <OrdersPageClient />
+    </div>
+  );
 }

@@ -5,6 +5,8 @@ public class SearchOrdersQuery
     public int? DisciplineId { get; set; }
     public int? WorkTypeId { get; set; }
     
+    public string? Search { get; set; }
+    
     public decimal? MinPrice { get; set; }
     public decimal? MaxPrice { get; set; }
 
@@ -30,6 +32,8 @@ public class OrderPreviewDto
     
     // Інфо про замовника
     public string ClientName { get; set; } = string.Empty;
+    public string ClientId { get; set; } = string.Empty;
+    public string? ExecutorId { get; set; }
 }
 
 // Обгортка для пагінації

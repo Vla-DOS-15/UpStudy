@@ -8,6 +8,9 @@ using UpStudy.Hubs;
 using UpStudy.Interfaces;
 using UpStudy.Models;
 using UpStudy.Services;
+using Amazon.S3;
+using Amazon.Runtime;
+using UpStudy.Constants;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -46,6 +49,33 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(key),
         ClockSkew = TimeSpan.Zero // Прибрати затримку часу (за замовчуванням 5 хв)
     };
+    
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+
+            // Якщо запит йде до хабу
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chatHub"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
+});
+
+builder.Services.AddAuthorization(options =>
+{
+    // Політика: Хто може перевіряти документи
+    options.AddPolicy("CanVerifyUsers", policy => 
+        policy.RequireRole(UserRoles.Admin, UserRoles.VerificationManager));
+
+    // Політика: Хто може бачити список всіх юзерів
+    options.AddPolicy("CanViewAllUsers", policy => 
+        policy.RequireRole(UserRoles.Admin, UserRoles.UserManager));
 });
 
 // Реєстрація сервісів
@@ -54,6 +84,7 @@ builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddSignalR();
 
 
@@ -87,6 +118,18 @@ builder.Services.AddCors(options =>
         });
 });
 
+var awsOptions = new Amazon.Extensions.NETCore.Setup.AWSOptions
+{
+    Credentials = new BasicAWSCredentials(
+        builder.Configuration["AWS:AccessKey"],
+        builder.Configuration["AWS:SecretKey"]
+    ),
+    Region = Amazon.RegionEndpoint.GetBySystemName(builder.Configuration["AWS:Region"])
+};
+builder.Services.AddDefaultAWSOptions(awsOptions);
+builder.Services.AddAWSService<IAmazonS3>();
+
+builder.Services.AddScoped<IS3Service, S3Service>();
 var app = builder.Build();
 
 // --- ВАЖЛИВО: Застосування міграцій при старті (Опціонально) ---

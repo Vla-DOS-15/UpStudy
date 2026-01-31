@@ -5,7 +5,11 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
+  userName: string;
   roles?: string[];
+  role?: string;
+  isVerified: boolean;
+  isVerificationPending: boolean;
 }
 
 export interface AuthResponse {
@@ -23,8 +27,22 @@ export interface LoginDto {
 }
 
 export interface RegisterDto {
+  role: 'Client' | 'Executor';
+  userName: string;
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+export interface RefreshTokenDto {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface AuthResponse {
+  isSuccess: boolean;
+  message: string;
+  accessToken: string;
+  refreshToken: string;
 }

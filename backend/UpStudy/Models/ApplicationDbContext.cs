@@ -56,12 +56,19 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
             .HasForeignKey(a => a.OrderId)
             .OnDelete(DeleteBehavior.Cascade); // Видаляємо замовлення -> видаляються записи про файли
 
-        // Замовлення -> Чат
+        // Замовлення -> Чати (1 до N)
         builder.Entity<Order>()
-            .HasOne(o => o.Chat)
+            .HasMany(o => o.Chats)
             .WithOne(c => c.Order)
-            .HasForeignKey<Chat>(c => c.OrderId)
+            .HasForeignKey(c => c.OrderId)
             .OnDelete(DeleteBehavior.Cascade);
+            
+        // Чат -> Учасник (Candidate)
+        builder.Entity<Chat>()
+            .HasOne(c => c.Participant)
+            .WithMany()
+            .HasForeignKey(c => c.ParticipantId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Замовлення -> Пропозиції
         builder.Entity<Order>()

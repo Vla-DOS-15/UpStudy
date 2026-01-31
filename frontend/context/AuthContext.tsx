@@ -5,7 +5,7 @@ import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
 import { LoginDto, RegisterDto, User } from '@/types';
 import { authService } from '@/services/authService';
-import { jwtDecode } from 'jwt-decode'; // npm install jwt-decode
+import { jwtDecode } from 'jwt-decode';
 
 interface AuthContextType {
   user: User | null;
@@ -23,18 +23,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
 
   useEffect(() => {
-    // При завантаженні перевіряємо токен
     const token = Cookies.get('accessToken');
     if (token) {
       try {
         const decoded: any = jwtDecode(token);
-        // Мапимо claims з JWT у об'єкт User
         setUser({
           id: decoded.nameid || decoded.sub,
           email: decoded.email,
-          firstName: decoded.given_name || '', // Якщо ти пакуєш це в токен
+          firstName: decoded.given_name || '',
           lastName: decoded.family_name || '',
+          userName: decoded.family_name || '',
           roles: decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [],
+          // Конвертуємо рядки "True"/"False" або булеві значення
+          isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
+          isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
         });
       } catch (e) {
         logout();
@@ -50,23 +52,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         Cookies.set('accessToken', res.accessToken);
         Cookies.set('refreshToken', res.refreshToken);
         
-        // Оновлюємо стан юзера (декодуємо токен)
         const decoded: any = jwtDecode(res.accessToken);
         setUser({
             id: decoded.nameid,
             email: decoded.email,
             firstName: decoded.given_name || 'User',
             lastName: '',
-            roles: decoded.role || []
+            userName: decoded.family_name || '',
+            roles: decoded.role || [],
+            isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
+            isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
         });
         
-        router.push('/dashboard'); // Або інша сторінка
+        router.push('/dashboard');
       } else {
-        alert(res.message);
+        throw new Error(res.message || 'Помилка входу');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert('Помилка входу');
+      throw error; 
     }
   };
 
@@ -74,13 +78,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const res = await authService.register(data);
       if (res.isSuccess) {
-        // Можна одразу логінити або просити залогінитись
         await login({ email: data.email, password: data.password });
       } else {
-        alert(res.message);
+        throw new Error(res.message || 'Помилка реєстрації');
       }
-    } catch (error) {
-      alert('Помилка реєстрації');
+    } catch (error: any) {
+      throw error;
     }
   };
 
@@ -88,7 +91,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     Cookies.remove('accessToken');
     Cookies.remove('refreshToken');
     setUser(null);
-    router.push('/login');
+    // Використовуємо window.location для повного очищення стану додатку
+    window.location.href = '/'; 
   };
 
   return (

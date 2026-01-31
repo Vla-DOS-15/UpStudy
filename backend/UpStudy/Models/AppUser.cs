@@ -7,6 +7,7 @@ public class AppUser : IdentityUser
 {
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
+    public DateTime LastActive { get; set; } = DateTime.UtcNow;
     
     // Профіль виконавця (необов'язкові поля, заповнюються якщо юзер хоче бути виконавцем)
     public string? AboutMe { get; set; }
@@ -15,6 +16,16 @@ public class AppUser : IdentityUser
     public string? BankCardNumber { get; set; } 
     
     public bool IsFop { get; set; } = false;
+    
+    public string? AvatarS3Key { get; set; }
+    
+    public bool IsVerified { get; set; } = false;
+    public bool IsVerificationPending { get; set; } = false;    
+    public string? VerificationRejectReason { get; set; }
+    public string? PassportS3Key { get; set; }
+    public string? DiplomaS3Key { get; set; }
+    public double Rating { get; set; } = 0;
+    public int CompletedOrdersCount { get; set; } = 0;
 
     public List<RefreshTokenInfo> RefreshTokens { get; set; } = new();
 

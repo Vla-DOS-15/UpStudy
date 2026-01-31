@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,11 +16,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -40,7 +38,6 @@ import {
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 
-// ВИПРАВЛЕНА СХЕМА
 const formSchema = z.object({
   title: z.string().min(5, 'Заголовок має бути мінімум 5 символів').max(100),
   description: z.string().min(20, 'Опишіть завдання детальніше (мін. 20 символів)'),
@@ -53,18 +50,24 @@ const formSchema = z.object({
 
 type OrderFormValues = z.infer<typeof formSchema>;
 
-interface CreateOrderFormProps {
-  disciplines: { id: number; name: string }[];
-  workTypes: { id: number; name: string }[];
+// Описуємо точний формат, який приходить з API (id: number)
+interface DictionaryItem {
+  id: number;
+  name: string;
 }
 
-export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps) {
+interface CreateOrderFormProps {
+  disciplines: DictionaryItem[];
+  workTypes: DictionaryItem[];
+  editId?: string;
+}
+
+export function CreateOrderForm({ disciplines, workTypes, editId }: CreateOrderFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [files, setFiles] = useState<FileList | null>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
-  // ВИПРАВЛЕНО: Всі поля мають значення за замовчуванням
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -74,20 +77,47 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
       disciplineId: '',
       workTypeId: '',
       price: undefined,
-      deadline: undefined as any, // Тимчасово для TypeScript
     },
   });
 
   const isNegotiable = form.watch('isNegotiable');
 
-  async function onSubmit(values: OrderFormValues) {
-    // Валідація дедлайну
-    if (!values.deadline) {
-      form.setError('deadline', { message: 'Вкажіть дедлайн' });
-      return;
-    }
+  // Fetch data if editId is present
+  useEffect(() => {
+    if (editId) {
+      const fetchOrder = async () => {
+        try {
+          setIsLoading(true);
+          const data = await orderService.getOrderById(editId);
+          console.log("DEBUG: Fetched Order Data:", data);
+          console.log("DEBUG: DisciplineId:", data.disciplineId, typeof data.disciplineId);
+          console.log("DEBUG: WorkTypeId:", data.workTypeId, typeof data.workTypeId);
 
-    // Валідація ціни
+          // Map API data to Form values
+          const formData = {
+            title: data.title,
+            description: data.description,
+            isNegotiable: data.isNegotiable,
+            disciplineId: data.disciplineId?.toString() || "", // Safely convert to string
+            workTypeId: data.workTypeId?.toString() || "",     // Safely convert to string
+            price: data.price,
+            deadline: new Date(data.deadline),
+          };
+          console.log("DEBUG: Setting Form Data:", formData);
+
+          form.reset(formData);
+        } catch (err) {
+          console.error(err);
+          toast.error("Не вдалося завантажити дані замовлення");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchOrder();
+    }
+  }, [editId, form]);
+
+  async function onSubmit(values: OrderFormValues) {
     if (!values.isNegotiable && (!values.price || values.price <= 0)) {
       form.setError('price', { message: 'Вкажіть бюджет або оберіть "Договірна"' });
       return;
@@ -95,17 +125,45 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
 
     try {
       setIsLoading(true);
-      await orderService.create({
-        ...values,
-        files: files, 
-      });
 
-      toast.success('Замовлення створено!');
+      if (editId) {
+        await orderService.update(editId, {
+          ...values,
+          disciplineId: Number(values.disciplineId),
+          workTypeId: Number(values.workTypeId),
+          // Files logic for update is complex, skipping for now as per plan
+        });
+        toast.success('Замовлення оновлено!');
+      } else {
+        // Відправляємо як рядки. .NET сам перетворить "1" -> 1 (int)
+        await orderService.create({
+          ...values,
+          disciplineId: values.disciplineId,
+          workTypeId: values.workTypeId,
+          files: files,
+        });
+        toast.success('Замовлення створено!');
+      }
+
       router.push('/dashboard/orders');
       router.refresh();
     } catch (error: any) {
+      console.error("Повна помилка:", error); // Дивіться в консоль браузера (F12)
+
+      // Спроба дістати конкретне повідомлення про помилку з бекенду
+      let errorMessage = 'Не вдалося створити замовлення.';
+
+      if (error.response?.data?.errors) {
+        // Якщо це ValidationProblemDetails (стандарт .NET)
+        // Беремо першу помилку з об'єкта errors
+        const firstErrorKey = Object.keys(error.response.data.errors)[0];
+        errorMessage = error.response.data.errors[firstErrorKey][0];
+      } else if (typeof error.response?.data === 'string') {
+        errorMessage = error.response.data;
+      }
+
       toast.error('Помилка', {
-        description: error.response?.data || 'Не вдалося створити замовлення.',
+        description: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -115,8 +173,8 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        
-        {/* Title Field */}
+
+        {/* Title */}
         <FormField
           control={form.control}
           name="title"
@@ -139,18 +197,25 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Дисципліна</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Оберіть предмет" />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
-                    {disciplines.map((d) => (
-                      <SelectItem key={d.id} value={d.id.toString()}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="max-h-[300px]">
+                    {disciplines && disciplines.length > 0 ? (
+                      disciplines.map((d) => (
+                        // 🔥 ВИПРАВЛЕННЯ: d.id.toString()
+                        <SelectItem key={d.id} value={d.id.toString()}>
+                          {d.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-2 text-sm text-center text-muted-foreground">
+                        Немає даних
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -165,18 +230,25 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Тип роботи</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Оберіть тип" />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
-                    {workTypes.map((t) => (
-                      <SelectItem key={t.id} value={t.id.toString()}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="max-h-[300px]">
+                    {workTypes && workTypes.length > 0 ? (
+                      workTypes.map((t) => (
+                        // 🔥 ВИПРАВЛЕННЯ: t.id.toString()
+                        <SelectItem key={t.id} value={t.id.toString()}>
+                          {t.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-2 text-sm text-center text-muted-foreground">
+                        Немає даних
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -185,7 +257,9 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
           />
         </div>
 
-        {/* Deadline DatePicker with Time */}
+        {/* Решта форми (Дедлайн, Опис, Ціна) без змін... */}
+        {/* ... (скопіюйте код нижче) ... */}
+
         <FormField
           control={form.control}
           name="deadline"
@@ -193,7 +267,6 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
             <FormItem>
               <FormLabel>Дедлайн</FormLabel>
               <div className="flex gap-4">
-                {/* Date Picker */}
                 <div className="flex flex-col gap-3 flex-1">
                   <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                     <PopoverTrigger asChild>
@@ -210,52 +283,36 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                    <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="single"
                         selected={field.value}
-                        captionLayout="dropdown"
                         onSelect={(date) => {
                           if (date) {
-                            // Зберігаємо час якщо він вже був встановлений
-                            const newDate = field.value ? new Date(date) : new Date(date);
-                            if (field.value) {
-                              newDate.setHours(field.value.getHours());
-                              newDate.setMinutes(field.value.getMinutes());
-                              newDate.setSeconds(field.value.getSeconds());
-                            }
+                            const newDate = field.value ? new Date(field.value) : new Date(date);
+                            newDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+                            if (!field.value) newDate.setHours(23, 59, 0);
                             field.onChange(newDate);
                           }
                           setDatePickerOpen(false);
                         }}
-                        disabled={(date) =>
-                          date < new Date(new Date().setHours(0, 0, 0, 0))
-                        }
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
                 </div>
-
-                {/* Time Picker */}
-                <div className="flex flex-col gap-3 w-32">
+                <div className="w-32">
                   <Input
                     type="time"
-                    step="60"
-                    value={
-                      field.value
-                        ? `${String(field.value.getHours()).padStart(2, '0')}:${String(field.value.getMinutes()).padStart(2, '0')}`
-                        : ''
-                    }
+                    value={field.value ? format(field.value, "HH:mm") : ""}
                     onChange={(e) => {
-                      const [hours, minutes] = e.target.value.split(':');
+                      const [h, m] = e.target.value.split(':').map(Number);
                       const newDate = field.value ? new Date(field.value) : new Date();
-                      newDate.setHours(parseInt(hours, 10));
-                      newDate.setMinutes(parseInt(minutes, 10));
-                      newDate.setSeconds(0);
+                      newDate.setHours(h || 0);
+                      newDate.setMinutes(m || 0);
                       field.onChange(newDate);
                     }}
-                    className="bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
                   />
                 </div>
               </div>
@@ -264,7 +321,6 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
           )}
         />
 
-        {/* Description Textarea */}
         <FormField
           control={form.control}
           name="description"
@@ -283,7 +339,6 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
           )}
         />
 
-        {/* Price & Negotiable */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
           <FormField
             control={form.control}
@@ -292,13 +347,13 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
               <FormItem className="flex-1">
                 <FormLabel>Бюджет (грн)</FormLabel>
                 <FormControl>
-                  <Input 
-                    type="number" 
-                    placeholder="1500" 
-                    {...field} 
-                    value={field.value || ''} 
+                  <Input
+                    type="number"
+                    placeholder="1500"
+                    {...field}
+                    value={field.value || ''}
                     onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                    disabled={isNegotiable} 
+                    disabled={isNegotiable}
                   />
                 </FormControl>
                 <FormMessage />
@@ -310,7 +365,7 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
             control={form.control}
             name="isNegotiable"
             render={({ field }) => (
-              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm mb-2">
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm mb-2 h-10 flex items-center bg-muted/20">
                 <FormControl>
                   <Checkbox
                     checked={field.value}
@@ -318,43 +373,42 @@ export function CreateOrderForm({ disciplines, workTypes }: CreateOrderFormProps
                   />
                 </FormControl>
                 <div className="space-y-1 leading-none">
-                  <FormLabel>Ціна договірна</FormLabel>
+                  <FormLabel className="cursor-pointer">Ціна договірна</FormLabel>
                 </div>
               </FormItem>
             )}
           />
         </div>
 
-        {/* File Upload */}
         <FormItem>
           <FormLabel>Прикріпити файли</FormLabel>
           <div className="flex items-center justify-center w-full">
-            <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 dark:hover:bg-gray-800 dark:bg-gray-700 border-gray-300 dark:border-gray-600">
+            <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 dark:hover:bg-gray-800 dark:bg-gray-700 border-gray-300 dark:border-gray-600 transition-colors">
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
                 <UploadCloud className="w-8 h-8 mb-2 text-gray-500 dark:text-gray-400" />
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  <span className="font-semibold">Натисніть</span> щоб завантажити
+                  <span className="font-semibold">Натисніть</span> щоб завантажити файли
                 </p>
               </div>
-              <input 
-                id="dropzone-file" 
-                type="file" 
-                className="hidden" 
-                multiple 
+              <input
+                id="dropzone-file"
+                type="file"
+                className="hidden"
+                multiple
                 onChange={(e) => setFiles(e.target.files)}
               />
             </label>
           </div>
           {files && files.length > 0 && (
-            <div className="text-sm text-muted-foreground mt-2">
+            <div className="text-sm text-green-600 mt-2 font-medium">
               Обрано файлів: {files.length}
             </div>
           )}
         </FormItem>
 
-        <Button type="submit" size="lg" disabled={isLoading}>
+        <Button type="submit" size="lg" disabled={isLoading} className="w-full sm:w-auto">
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Опублікувати
+          {editId ? 'Зберегти зміни' : 'Опублікувати замовлення'}
         </Button>
       </form>
     </Form>

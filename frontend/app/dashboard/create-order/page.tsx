@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { CreateOrderForm } from '@/components/dashboard/create-order-form';
+import { dictionaryService } from '@/services/dictionaryService'; // Імпортуємо наш новий сервіс
 import {
   Card,
   CardContent,
@@ -13,39 +14,34 @@ export const metadata: Metadata = {
   description: 'Знайдіть виконавця для вашої роботи',
 };
 
-// Тимчасові дані (так як немає ендпоінтів для словників в OpenAPI)
-// У реальному додатку це краще фетчити з бекенду або кешу
-const MOCK_DISCIPLINES = [
-  { id: 1, name: "Інформаційні технології" },
-  { id: 2, name: "Економіка" },
-  { id: 3, name: "Право" },
-  { id: 4, name: "Математика" },
-  { id: 5, name: "Іноземні мови" },
-];
+// Сторінка стає async Server Component
+export default async function CreateOrderPage(props: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const searchParams = await props.searchParams;
 
-const MOCK_WORK_TYPES = [
-  { id: 1, name: "Лабораторна робота" },
-  { id: 2, name: "Курсова робота" },
-  { id: 3, name: "Диплом" },
-  { id: 4, name: "Есе" },
-  { id: 5, name: "Реферат" },
-];
+  // Виконуємо запити паралельно для швидкості
+  const [disciplinesData, workTypesData] = await Promise.all([
+    dictionaryService.getDisciplines(), // Обробка помилок, щоб сторінка не впала
+    dictionaryService.getWorkTypes().catch(() => [])
+  ]);
 
-export default function CreateOrderPage() {
+  const editId = typeof searchParams.edit === 'string' ? searchParams.edit : undefined;
+
   return (
     <div className="max-w-3xl mx-auto py-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Нове замовлення</CardTitle>
+          <CardTitle className="text-2xl">{editId ? 'Редагування замовлення' : 'Нове замовлення'}</CardTitle>
           <CardDescription>
-            Заповніть форму, щоб виконавці могли оцінити ваше завдання.
+            {editId ? 'Внесіть зміни у ваше замовлення.' : 'Заповніть форму, щоб виконавці могли оцінити ваше завдання.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Передаємо дані в клієнтський компонент */}
-          <CreateOrderForm 
-            disciplines={MOCK_DISCIPLINES} 
-            workTypes={MOCK_WORK_TYPES} 
+          <CreateOrderForm
+            disciplines={disciplinesData}
+            workTypes={workTypesData}
+            editId={editId}
           />
         </CardContent>
       </Card>

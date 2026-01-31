@@ -53,4 +53,19 @@ public class AuthController : ControllerBase
 
         return Ok(result);
     }
+    
+    [HttpPost("refresh-token")]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto model)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var result = await _authService.RefreshTokenAsync(model);
+
+        if (!result.IsSuccess)
+            // Повертаємо 401 Unauthorized, щоб фронтенд знав, що треба викинути юзера на логін
+            return Unauthorized(new { message = result.Message });
+
+        return Ok(result);
+    }
 }
