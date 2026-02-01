@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
 import { uk } from 'date-fns/locale';
-import { ChevronDownIcon, Loader2, UploadCloud } from 'lucide-react';
+import { ChevronDownIcon, Loader2, UploadCloud, X, FileIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { orderService } from '@/services/orderService';
@@ -56,6 +56,13 @@ interface DictionaryItem {
   name: string;
 }
 
+interface AttachmentDto {
+  id: string;
+  originalFileName: string;
+  viewUrl?: string;
+  downloadUrl?: string;
+}
+
 interface CreateOrderFormProps {
   disciplines: DictionaryItem[];
   workTypes: DictionaryItem[];
@@ -65,7 +72,12 @@ interface CreateOrderFormProps {
 export function CreateOrderForm({ disciplines, workTypes, editId }: CreateOrderFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [files, setFiles] = useState<FileList | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+
+  // State for Edit Mode
+  const [existingFiles, setExistingFiles] = useState<AttachmentDto[]>([]);
+  const [deletedFileIds, setDeletedFileIds] = useState<string[]>([]);
+
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const form = useForm<OrderFormValues>({
@@ -105,6 +117,10 @@ export function CreateOrderForm({ disciplines, workTypes, editId }: CreateOrderF
           };
           console.log("DEBUG: Setting Form Data:", formData);
 
+          if (data.attachments) {
+            setExistingFiles(data.attachments);
+          }
+
           form.reset(formData);
         } catch (err) {
           console.error(err);
@@ -131,7 +147,8 @@ export function CreateOrderForm({ disciplines, workTypes, editId }: CreateOrderF
           ...values,
           disciplineId: Number(values.disciplineId),
           workTypeId: Number(values.workTypeId),
-          // Files logic for update is complex, skipping for now as per plan
+          files: files, // Send new files
+          deletedFileIds: deletedFileIds // Send IDs of files to remove
         });
         toast.success('Замовлення оновлено!');
       } else {
@@ -382,12 +399,49 @@ export function CreateOrderForm({ disciplines, workTypes, editId }: CreateOrderF
 
         <FormItem>
           <FormLabel>Прикріпити файли</FormLabel>
+
+          {/* Existing Files List (Edit Mode) */}
+          {existingFiles.length > 0 && (
+            <div className="space-y-2 mb-4">
+              <p className="text-sm font-medium text-muted-foreground">Вже завантажені файли:</p>
+              <div className="grid gap-2">
+                {existingFiles.map((file) => (
+                  <div key={file.id} className="flex items-center justify-between p-2 border rounded-md bg-muted/50">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <FileIcon className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                      <a
+                        href={file.viewUrl || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm truncate hover:underline"
+                      >
+                        {file.originalFileName}
+                      </a>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                      onClick={() => {
+                        setDeletedFileIds(prev => [...prev, file.id]);
+                        setExistingFiles(prev => prev.filter(f => f.id !== file.id));
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-center w-full">
             <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 dark:hover:bg-gray-800 dark:bg-gray-700 border-gray-300 dark:border-gray-600 transition-colors">
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
                 <UploadCloud className="w-8 h-8 mb-2 text-gray-500 dark:text-gray-400" />
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  <span className="font-semibold">Натисніть</span> щоб завантажити файли
+                  <span className="font-semibold">Натисніть</span> щоб додати файли
                 </p>
               </div>
               <input
@@ -395,13 +449,41 @@ export function CreateOrderForm({ disciplines, workTypes, editId }: CreateOrderF
                 type="file"
                 className="hidden"
                 multiple
-                onChange={(e) => setFiles(e.target.files)}
+                onChange={(e) => {
+                  if (e.target.files) {
+                    setFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                  }
+                }}
               />
             </label>
           </div>
-          {files && files.length > 0 && (
-            <div className="text-sm text-green-600 mt-2 font-medium">
-              Обрано файлів: {files.length}
+
+          {/* New Files List */}
+          {files.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Нові файли:</p>
+              <div className="grid gap-2">
+                {files.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="flex items-center justify-between p-2 border rounded-md bg-muted/50">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <FileIcon className="h-4 w-4 flex-shrink-0 text-green-600" />
+                      <span className="text-sm truncate">{file.name}</span>
+                      <span className="text-xs text-muted-foreground">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                      onClick={() => {
+                        setFiles(prev => prev.filter((_, i) => i !== index));
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </FormItem>

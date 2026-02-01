@@ -55,6 +55,9 @@ public class AuthService : IAuthService
         {
             if (string.IsNullOrWhiteSpace(model.FirstName) || string.IsNullOrWhiteSpace(model.LastName))
                 return new AuthResponseDto { IsSuccess = false, Message = "Ім'я та прізвище обов'язкові для виконавця" };
+
+            if (string.IsNullOrWhiteSpace(model.PhoneNumber))
+                return new AuthResponseDto { IsSuccess = false, Message = "Номер телефону обов'язковий для виконавця" };
         }
 
         var user = new AppUser
@@ -63,6 +66,7 @@ public class AuthService : IAuthService
             UserName = model.UserName,
             FirstName = model.Role == "Client" ? (model.FirstName ?? "Client") : model.FirstName!,
             LastName = model.Role == "Client" ? (model.LastName ?? "") : model.LastName!,
+            PhoneNumber = model.PhoneNumber,
             SecurityStamp = Guid.NewGuid().ToString()
             // IsVerified = false за замовчуванням
         };
@@ -140,7 +144,11 @@ public class AuthService : IAuthService
                 if (!createResult.Succeeded)
                     return new AuthResponseDto { IsSuccess = false, Message = "Не вдалося створити користувача через Google" };
                 
-                // await _userManager.AddToRoleAsync(user, "User");
+                // Assign default role "Client"
+                if (!await _roleManager.RoleExistsAsync("Client"))
+                    await _roleManager.CreateAsync(new IdentityRole("Client"));
+                
+                await _userManager.AddToRoleAsync(user, "Client");
             }
 
             return await GenerateTokensAndSaveAsync(user);
@@ -217,9 +225,15 @@ public class AuthService : IAuthService
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Email, user.Email!),
+            new Claim(ClaimTypes.GivenName, user.FirstName ?? ""),
+            new Claim(ClaimTypes.Surname, user.LastName ?? ""),
+            new Claim(ClaimTypes.Name, user.UserName ?? ""),
+            new Claim(ClaimTypes.MobilePhone, user.PhoneNumber ?? ""),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new Claim("IsVerified", user.IsVerified.ToString()),
-            new Claim("IsVerificationPending", user.IsVerificationPending.ToString())
+            new Claim("IsVerificationPending", user.IsVerificationPending.ToString()),
+            new Claim("BankCardNumber", user.BankCardNumber ?? ""),
+            new Claim("BankCardOwnerName", user.BankCardOwnerName ?? "")
 
         };
 

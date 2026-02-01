@@ -9,7 +9,7 @@ export interface CreateOrderData {
   deadline: Date;
   disciplineId: string;
   workTypeId: string;
-  files?: FileList | null;
+  files?: File[] | null;
 }
 
 export const orderService = {
@@ -49,12 +49,46 @@ export const orderService = {
     return response.data;
   },
 
+  async rejectExecutor(orderId: string, proposalId: string) {
+    const response = await api.post(`/Orders/${orderId}/reject-executor`, { proposalId });
+    return response.data;
+  },
+
   async update(id: string, data: any) {
-    // Для update ми використовуємо JSON, бо файли зазвичай не оновлюються через це поле, або треба окрему логіку.
-    // DTO: UpdateOrderDto { Title, Description, IsNegotiable, Price, Deadline, DisciplineId, WorkTypeId }
-    // Якщо треба файли - це окремий endpoint або multipart.
-    // Поки припустимо, що files не оновлюємо тут.
-    const response = await api.put(`/Orders/${id}`, data);
+    const formData = new FormData();
+
+    formData.append('Title', data.title);
+    formData.append('Description', data.description);
+    formData.append('IsNegotiable', String(data.isNegotiable));
+
+    if (data.price) {
+      formData.append('Price', data.price.toString());
+    }
+
+    formData.append('Deadline', data.deadline.toISOString());
+    formData.append('DisciplineId', data.disciplineId);
+    formData.append('WorkTypeId', data.workTypeId);
+
+    // 1. Add new files
+    if (data.files && data.files.length > 0) {
+      for (let i = 0; i < data.files.length; i++) {
+        formData.append('NewFiles', data.files[i]);
+      }
+    }
+
+    // 2. Add deleted file IDs
+    if (data.deletedFileIds && data.deletedFileIds.length > 0) {
+      data.deletedFileIds.forEach((fileId: string) => {
+        formData.append('DeletedFileIds', fileId);
+      });
+    }
+
+    // IMPORTANT: Let axios set Content-Type to multipart/form-data
+    const response = await api.put(`/Orders/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 
@@ -69,8 +103,18 @@ export const orderService = {
     return response.data;
   },
 
+  async deleteProposal(id: string) {
+    const response = await api.delete(`/Proposals/${id}`);
+    return response.data;
+  },
+
   async getMyOrders() {
     const response = await api.get('/Orders/my-orders');
+    return response.data;
+  },
+
+  async getMyProposals() {
+    const response = await api.get('/Orders/my-proposals');
     return response.data;
   },
 

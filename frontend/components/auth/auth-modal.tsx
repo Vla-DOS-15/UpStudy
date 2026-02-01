@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from './login-form';
 import { RegisterForm } from './register-form';
 import { Button } from '@/components/ui/button';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
 export function AuthModal() {
   const [isOpen, setIsOpen] = useState(false);
@@ -37,26 +38,28 @@ export function AuthModal() {
             {activeTab === 'login' ? 'Вхід в UpStudy' : 'Створення акаунту'}
           </DialogTitle>
           <DialogDescription className="text-center">
-            {activeTab === 'login' 
-              ? 'Введіть дані для доступу до кабінету' 
+            {activeTab === 'login'
+              ? 'Введіть дані для доступу до кабінету'
               : 'Оберіть роль та долучайтесь до платформи'}
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "login" | "register")} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login">Вхід</TabsTrigger>
-            <TabsTrigger value="register">Реєстрація</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="login">
-            <LoginForm onSuccess={closeDialog} />
-          </TabsContent>
-          
-          <TabsContent value="register">
-            <RegisterForm onSuccess={closeDialog} />
-          </TabsContent>
-        </Tabs>
+        <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "PLACEHOLDER_CLIENT_ID"}>
+          <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "login" | "register")} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">Вхід</TabsTrigger>
+              <TabsTrigger value="register">Реєстрація</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="login">
+              <LoginForm onSuccess={closeDialog} />
+            </TabsContent>
+
+            <TabsContent value="register">
+              <RegisterForm onSuccess={closeDialog} />
+            </TabsContent>
+          </Tabs>
+        </GoogleOAuthProvider>
       </DialogContent>
     </Dialog>
   );

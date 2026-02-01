@@ -1,3 +1,4 @@
+using UpStudy.Dtos;
 using UpStudy.Dtos.Payments;
 using UpStudy.Models;
 
@@ -12,7 +13,9 @@ public interface IPaymentService
     Task ProcessLiqPayWebhookAsync(Dictionary<string, string> requestData);
 
     // 6.2 Прямі рахунки
-    Task<DirectPaymentRequest> CreateInvoiceAsync(string executorId, CreateInvoiceDto dto);
-    Task ConfirmInvoiceAsync(Guid invoiceId, string executorId); // Виконавець підтверджує отримання
-    Task MarkInvoiceAsPaidAsync(Guid invoiceId, string clientId); // Клієнт каже "Я оплатив"
+    Task<PaymentRequestDto> CreateRequestAsync(string userId, CreatePaymentRequestDto dto);
+    Task<PaymentRequestDto> UploadReceiptAsync(Guid requestId, string userId, IFormFile file);
+    Task<PaymentRequestDto> ConfirmPaymentAsync(Guid requestId, string userId);
+    Task<PaymentRequestDto> RejectPaymentAsync(Guid requestId, string userId, RejectPaymentDto dto);
+    Task<List<PaymentRequestDto>> GetRequestsByOrderAsync(Guid orderId, string userId);
 }

@@ -13,7 +13,10 @@ public class AppUser : IdentityUser
     public string? AboutMe { get; set; }
     
     [StringLength(16)]
-    public string? BankCardNumber { get; set; } 
+    public string? BankCardNumber { get; set; }
+    
+    [StringLength(100)]
+    public string? BankCardOwnerName { get; set; } 
     
     public bool IsFop { get; set; } = false;
     

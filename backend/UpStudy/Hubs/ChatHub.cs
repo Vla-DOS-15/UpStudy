@@ -99,8 +99,38 @@ public class ChatHub : Hub
 
     // ... (OnConnected/Disconnected/UpdateUserStatus same)
 
+    public override async Task OnConnectedAsync()
+    {
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var groupName = $"user_{userId.ToLower()}";
+            Console.WriteLine($"[SignalR] User Connected: {userId}. Joining Group: {groupName}");
+            await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+            await UpdateUserStatus(true);
+        }
+        else 
+        {
+             Console.WriteLine("[SignalR] User Connected but ID is NULL (Unauthorized?)");
+        }
+        await base.OnConnectedAsync();
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var groupName = $"user_{userId.ToLower()}";
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+            await UpdateUserStatus(false);
+        }
+        await base.OnDisconnectedAsync(exception);
+    }
+
     private async Task UpdateUserStatus(bool isOnline)
     {
+        // ... (rest is same)
         var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId)) return;
 
@@ -128,6 +158,17 @@ public class ChatHub : Hub
         if (Guid.TryParse(orderId, out Guid orderGuid))
         {
             await _chatService.SaveMessageAsync(orderGuid, userId, messageText, candidateId);
+        }
+    }
+
+
+    public async Task Ping()
+    {
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        Console.WriteLine($"[SIGNALR-DEBUG] PING received from {userId}");
+        await Clients.Caller.SendAsync("Pong", $"Hello {userId}, you are connected (Caller).");
+        if (userId != null) {
+            await Clients.Group($"user_{userId.ToLower()}").SendAsync("Pong", $"Hello {userId}, you are in the GROUP!");
         }
     }
 }

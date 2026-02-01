@@ -21,6 +21,14 @@ export interface ChatMessageDto {
     attachments: ChatAttachmentDto[];
 }
 
+export interface ChatDetails {
+    id: string;
+    orderId: string;
+    candidateId?: string;
+}
+
+
+
 class ChatService {
     private connection: signalR.HubConnection | null = null;
     private apiUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -29,16 +37,20 @@ class ChatService {
     // --- SIGNALR METHODS ---
 
     public async startConnection(token: string): Promise<void> {
-        if (this.connection && this.connection.state === signalR.HubConnectionState.Connected) return;
+        if (!this.connection) {
+            this.connection = new signalR.HubConnectionBuilder()
+                .withUrl(this.hubUrl, {
+                    accessTokenFactory: () => token,
+                    skipNegotiation: true,
+                    transport: signalR.HttpTransportType.WebSockets
+                })
+                .withAutomaticReconnect()
+                .build();
+        }
 
-        this.connection = new signalR.HubConnectionBuilder()
-            .withUrl(this.hubUrl, {
-                accessTokenFactory: () => token,
-                skipNegotiation: true,
-                transport: signalR.HttpTransportType.WebSockets
-            })
-            .withAutomaticReconnect()
-            .build();
+        if (this.connection.state === signalR.HubConnectionState.Connected) return;
+        if (this.connection.state === signalR.HubConnectionState.Connecting ||
+            this.connection.state === signalR.HubConnectionState.Reconnecting) return;
 
         try {
             await this.connection.start();
@@ -82,6 +94,22 @@ class ChatService {
         this.connection?.off("ReceiveMessage", callback);
     }
 
+    public onNewMessageNotification(callback: (notification: any) => void) {
+        this.connection?.on("NewMessageNotification", callback);
+    }
+
+    public offNewMessageNotification(callback: (notification: any) => void) {
+        this.connection?.off("NewMessageNotification", callback);
+    }
+
+    public onUnreadCountUpdated(callback: () => void) {
+        this.connection?.on("UnreadCountUpdated", callback);
+    }
+
+    public offUnreadCountUpdated(callback: () => void) {
+        this.connection?.off("UnreadCountUpdated", callback);
+    }
+
     // --- API METHODS ---
 
     public async initChat(orderId: string, candidateId?: string): Promise<{ chatId: string }> {
@@ -93,6 +121,13 @@ class ChatService {
         const response = await axios.get(`${this.apiUrl}/chat/room/${chatId}`, this.getHeaders());
         return response.data;
     }
+
+    public async getChatDetails(chatId: string): Promise<ChatDetails> {
+        const response = await axios.get(`${this.apiUrl}/chat/room/${chatId}/details`, this.getHeaders());
+        return response.data;
+    }
+
+
 
     // Legacy (Deprecated) - keeping for compatibility during migration if strictly needed, 
     // but better to break to find usages.

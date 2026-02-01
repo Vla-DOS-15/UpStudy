@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
   User, PlusCircle, FileText, Star, Wallet, HelpCircle, Search,
-  ChevronLeft, ChevronRight, LogOut, ShoppingBag, Briefcase
+  ChevronLeft, ChevronRight, LogOut, ShoppingBag, Briefcase, Clock, Ban
 } from 'lucide-react'; // Додав ShoppingBag та Briefcase
 import {
   Tooltip,
@@ -31,7 +31,7 @@ export function Sidebar() {
     // Клієнт теж може хотіти купити готову роботу
     { href: '/dashboard/shop', label: 'Купити готову роботу', icon: ShoppingBag },
     { href: '/dashboard/orders', label: 'Мої замовлення', icon: FileText },
-    { href: '/dashboard/consultants', label: 'Рейтинг авторів', icon: Star },
+    { href: '/dashboard/ratings', label: 'Рейтинг авторів', icon: Star },
     { href: '/dashboard/balance', label: 'Баланс', icon: Wallet },
     { href: '/dashboard/faq', label: 'Допомога', icon: HelpCircle },
   ];
@@ -44,7 +44,9 @@ export function Sidebar() {
     { href: '/dashboard/orders', label: 'Пошук замовлень', icon: Search },
 
     // 2. Поточні завдання (Active)
+    { href: '/dashboard/pending-orders', label: 'В очікуванні', icon: Clock }, // import Clock manually if needed
     { href: '/dashboard/active-orders', label: 'В роботі', icon: Briefcase },
+    { href: '/dashboard/rejected-orders', label: 'Відхилені', icon: Ban }, // import Ban manually if needed
 
     // 3. Продаж готового (Магазин - майбутній функціонал)
     { href: '/dashboard/my-shop', label: 'Мої готові роботи', icon: ShoppingBag },

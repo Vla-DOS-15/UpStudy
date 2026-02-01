@@ -105,6 +105,19 @@ public class ChatController : ControllerBase
         catch (KeyNotFoundException) { return NotFound(); }
     }
 
+    [HttpGet("room/{chatId}/details")]
+    public async Task<IActionResult> GetChatDetails(Guid chatId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        try
+        {
+            return Ok(await _chatService.GetChatDetailsAsync(chatId, userId));
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+    }
+
     [HttpPost("room/{chatId}/messages")]
     public async Task<IActionResult> SendMessageByChatId(Guid chatId, [FromBody] SendMessageDto dto)
     {
@@ -143,4 +156,6 @@ public class ChatController : ControllerBase
             return StatusCode(500, ex.Message);
         }
     }
+
+
 }

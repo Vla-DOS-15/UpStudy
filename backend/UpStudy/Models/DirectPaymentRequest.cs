@@ -10,6 +10,13 @@ public class DirectPaymentRequest
     public decimal Amount { get; set; }
     public string Comment { get; set; } = string.Empty;
     
+    // Зліпок даних карти на момент створення запиту (щоб якщо юзер змінив карту, старі запити не ламались)
+    public string CardNumber { get; set; } = string.Empty;
+    public string CardOwnerName { get; set; } = string.Empty;
+
+    public string? ReceiptS3Key { get; set; } // Фото чека
+    public string? RejectReason { get; set; } // Причина відхилення
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? PaidAt { get; set; }
 

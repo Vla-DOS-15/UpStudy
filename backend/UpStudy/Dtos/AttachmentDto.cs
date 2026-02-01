@@ -10,4 +10,7 @@ public class AttachmentDto
     // Presigned URLs (дійсні ~1 годину)
     public string ViewUrl { get; set; } = string.Empty;      // Для перегляду в браузері
     public string DownloadUrl { get; set; } = string.Empty;  // Для завантаження
+    
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? S3Key { get; set; }
 }

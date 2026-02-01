@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using UpStudy.Dtos;
 using UpStudy.Dtos.Payments;
 using UpStudy.Interfaces;
 
@@ -56,16 +57,18 @@ public class PaymentsController : ControllerBase
         }
     }
 
-    // 6.2 [Виконавець] Виставити прямий рахунок
-    [HttpPost("invoices")]
+    // --- DIRECT PAYMENTS (UPDATED) ---
+
+    // [Виконавець] Створити запит на оплату
+    [HttpPost("requests")]
     [Authorize]
-    public async Task<IActionResult> CreateInvoice([FromBody] CreateInvoiceDto dto)
+    public async Task<IActionResult> CreateRequest([FromBody] CreatePaymentRequestDto dto)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         try
         {
-            var invoice = await _paymentService.CreateInvoiceAsync(userId!, dto);
-            return Ok(invoice);
+            var result = await _paymentService.CreateRequestAsync(userId!, dto);
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -73,23 +76,75 @@ public class PaymentsController : ControllerBase
         }
     }
 
-    // [Клієнт] Я оплатив
-    [HttpPost("invoices/{id}/pay")]
+    // [Клієнт] Завантажити чек (Оплатити)
+    [HttpPost("requests/{id}/receipt")]
     [Authorize]
-    public async Task<IActionResult> MarkAsPaid(Guid id)
+    public async Task<IActionResult> UploadReceipt(Guid id, IFormFile file)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        await _paymentService.MarkInvoiceAsPaidAsync(id, userId!);
-        return Ok(new { Message = "Позначено як оплачено" });
+        try
+        {
+            var result = await _paymentService.UploadReceiptAsync(id, userId!, file);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
     }
 
-    // [Виконавець] Підтверджую
-    [HttpPost("invoices/{id}/confirm")]
+    // [Виконавець] Підтвердити оплату
+    [HttpPost("requests/{id}/confirm")]
     [Authorize]
-    public async Task<IActionResult> ConfirmInvoice(Guid id)
+    public async Task<IActionResult> ConfirmPayment(Guid id)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        await _paymentService.ConfirmInvoiceAsync(id, userId!);
-        return Ok(new { Message = "Оплату підтверджено" });
+        try
+        {
+            var result = await _paymentService.ConfirmPaymentAsync(id, userId!);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+    }
+
+    // [Виконавець] Відхилити оплату
+    [HttpPost("requests/{id}/reject")]
+    [Authorize]
+    public async Task<IActionResult> RejectPayment(Guid id, [FromBody] RejectPaymentDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        try
+        {
+            var result = await _paymentService.RejectPaymentAsync(id, userId!, dto);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+    }
+
+    // [Обидва] Отримати список запитів по замовлення
+    [HttpGet("order/{orderId}")]
+    [Authorize]
+    public async Task<IActionResult> GetByOrder(Guid orderId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        try
+        {
+            var result = await _paymentService.GetRequestsByOrderAsync(orderId, userId!);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
     }
 }

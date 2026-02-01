@@ -10,6 +10,10 @@ export interface User {
   role?: string;
   isVerified: boolean;
   isVerificationPending: boolean;
+  avatarUrl?: string | null;
+  phoneNumber?: string | null;
+  bankCardNumber?: string | null;
+  bankCardOwnerName?: string | null;
 }
 
 export interface AuthResponse {

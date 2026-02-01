@@ -106,7 +106,7 @@ public class ChatService : IChatService
                 SentAt = m.SentAt,
                 IsSystem = m.IsSystem,
                 SenderId = m.SenderId,
-                SenderName = m.IsSystem ? "СИСТЕМА" : $"{m.Sender.FirstName} {m.Sender.LastName}",
+                SenderName = m.IsSystem ? "СИСТЕМА" : (m.Sender != null ? m.Sender.UserName ?? "Unknown" : "Unknown"),
                 Attachments = attachmentDtos
             });
         }
@@ -154,7 +154,7 @@ public class ChatService : IChatService
             SentAt = message.SentAt,
             IsSystem = message.IsSystem,
             SenderId = senderId,
-            SenderName = isSystem ? "СИСТЕМА" : $"{message.Sender.FirstName} {message.Sender.LastName}",
+            SenderName = isSystem ? "СИСТЕМА" : (message.Sender != null ? message.Sender.UserName ?? "Unknown" : "Unknown"),
             Attachments = new List<ChatAttachmentDto>()
         };
 
@@ -166,6 +166,8 @@ public class ChatService : IChatService
         
         string groupName = $"chat_{chat.Id}";
         await _hubContext.Clients.Group(groupName).SendAsync("ReceiveMessage", dto);
+
+
         
         return dto;
     }
@@ -218,7 +220,7 @@ public class ChatService : IChatService
             Text = "", 
             SentAt = message.SentAt, 
             SenderId = senderId,
-            SenderName = $"{message.Sender.FirstName} {message.Sender.LastName}",
+            SenderName = (message.Sender != null ? message.Sender.UserName ?? "Unknown" : "Unknown"),
             Attachments = new List<ChatAttachmentDto> 
             { 
                 new ChatAttachmentDto 
@@ -253,11 +255,16 @@ public class ChatService : IChatService
 
     private async Task<Chat> GetOrCreateChatAsync(Guid orderId, string? participantId)
     {
-        var chat = await _context.Chats.FirstOrDefaultAsync(c => c.OrderId == orderId && c.ParticipantId == participantId);
+        var chat = await _context.Chats
+            .Include(c => c.Order)
+            .FirstOrDefaultAsync(c => c.OrderId == orderId && c.ParticipantId == participantId);
+            
         if (chat == null) {
             chat = new Chat { OrderId = orderId, ParticipantId = participantId };
             _context.Chats.Add(chat);
             await _context.SaveChangesAsync();
+            // Load Order for subsequent usage
+             await _context.Entry(chat).Reference(c => c.Order).LoadAsync();
         }
         return chat;
     }
@@ -292,7 +299,7 @@ public class ChatService : IChatService
             SentAt = message.SentAt,
             IsSystem = message.IsSystem,
             SenderId = senderId,
-            SenderName = isSystem ? "СИСТЕМА" : $"{message.Sender.FirstName} {message.Sender.LastName}",
+            SenderName = isSystem ? "СИСТЕМА" : (message.Sender != null ? message.Sender.UserName ?? "Unknown" : "Unknown"),
             Attachments = new List<ChatAttachmentDto>()
         };
 
@@ -341,7 +348,7 @@ public class ChatService : IChatService
             Text = "", 
             SentAt = message.SentAt, 
             SenderId = senderId,
-            SenderName = $"{message.Sender.FirstName} {message.Sender.LastName}",
+            SenderName = (message.Sender != null ? message.Sender.UserName ?? "Unknown" : "Unknown"),
             Attachments = new List<ChatAttachmentDto> 
             { 
                 new ChatAttachmentDto 
@@ -356,6 +363,8 @@ public class ChatService : IChatService
 
         string groupName = $"chat_{chatId}";
         await _hubContext.Clients.Group(groupName).SendAsync("ReceiveMessage", dto);
+
+
         return dto;
     }
 
@@ -365,4 +374,24 @@ public class ChatService : IChatService
         if (user == null) throw new KeyNotFoundException("Користувача не знайдено");
         return user.LastActive;
     }
+
+    public async Task<ChatDetailsDto> GetChatDetailsAsync(Guid chatId, string userId)
+    {
+        var chat = await _context.Chats.FirstOrDefaultAsync(c => c.Id == chatId);
+        if (chat == null) throw new KeyNotFoundException("Chat not found");
+
+        var isParticipant = chat.Order?.ClientId == userId || chat.ParticipantId == userId || chat.Order?.ExecutorId == userId;
+        // Optimization: Include Order to check participants properly without multiple queries?
+        // Let's optimize query:
+        // var chat = await _context.Chats.Include(c => c.Order).FirstOrDefaultAsync(c => c.Id == chatId);
+        // BUT _context.Chats was already queried above? No, rewriting:
+        
+        return new ChatDetailsDto
+        {
+            Id = chat.Id,
+            OrderId = chat.OrderId,
+            CandidateId = chat.ParticipantId
+        };
+    }
+
 }

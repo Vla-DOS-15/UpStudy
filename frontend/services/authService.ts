@@ -17,13 +17,13 @@ export const authService = {
     const response = await api.post<AuthResponse>('/Auth/google-login', { idToken });
     return response.data;
   },
-  
+
   // Додай цей ендпоінт на бекенд, якщо його немає (GET /Account/me)
   // або декодуй JWT на клієнті
   async getCurrentUser() {
-     // Тимчасово повертаємо null або реалізуй endpoint
-     // return api.get<User>('/Account/me'); 
-     return null; 
+    // Тимчасово повертаємо null або реалізуй endpoint
+    // return api.get<User>('/Account/me'); 
+    return null;
   },
 
   async refreshToken(data: RefreshTokenDto) {

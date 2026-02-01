@@ -15,6 +15,7 @@ import OrderListItem from '@/components/orders/OrderListItem';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { dictionaryService, DictionaryItem } from '@/services/dictionaryService';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 
 export default function OrdersPageClient() {
     const { user } = useAuth();
@@ -27,7 +28,8 @@ export default function OrdersPageClient() {
 
     // Pagination
     const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(false);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
     const PAGE_SIZE = 9;
 
     // Filters State
@@ -45,11 +47,16 @@ export default function OrdersPageClient() {
     useEffect(() => {
         // Debounce fetch for filters
         const timer = setTimeout(() => {
-            fetchOrders(true); // Reset to page 1 on filter change
+            fetchOrders();
         }, 500);
 
         return () => clearTimeout(timer);
-    }, [userRole, searchQuery, selectedDiscipline, selectedWorkType, minPrice, maxPrice]);
+    }, [userRole, searchQuery, selectedDiscipline, selectedWorkType, minPrice, maxPrice, page]);
+
+    // Reset page to 1 when filters change (except page itself)
+    useEffect(() => {
+        setPage(1);
+    }, [searchQuery, selectedDiscipline, selectedWorkType, minPrice, maxPrice]);
 
     // Load Dictionaries
     useEffect(() => {
@@ -68,62 +75,40 @@ export default function OrdersPageClient() {
         loadDictionaries();
     }, []);
 
-    const fetchOrders = async (resetPage: boolean = false) => {
-        // Logic Validation inside fetch to prevent bad requests during auto-fetch
+    const fetchOrders = async () => {
+        // Logic Validation inside fetch
         if (minPrice && Number(minPrice) < 0) return;
         if (maxPrice && Number(maxPrice) < 0) return;
         if (minPrice && maxPrice && Number(maxPrice) < Number(minPrice)) return;
 
         try {
-            const currentPage = resetPage ? 1 : page;
-
-            if (resetPage) {
-                setIsLoading(true);
-                setPage(1);
-            } else {
-                setIsLoadingMore(true);
-            }
+            setIsLoading(true);
 
             let data;
 
             if (userRole === 'Client') {
-                // Клієнт бачить ТІЛЬКИ свої замовлення (поки що без пагінації на беку для my-orders? Припустимо там теж треба буде, але поки лишаємо як є)
+                // Client sees ONLY their orders
                 data = await orderService.getMyOrders();
-                // Якщо getMyOrders повертає плоский масив, пагінація тут не спрацює без змін беку. 
-                // Але задача була про "багато завдань" -> це зазвичай про біржу (getAllOrders).
             } else {
-                // Виконавець бачить всі замовлення (Біржа)
+                // Executor sees all orders (Exchange)
                 data = await orderService.getAllOrders({
                     search: searchQuery,
                     disciplineId: selectedDiscipline !== 'all' ? Number(selectedDiscipline) : undefined,
                     workTypeId: selectedWorkType !== 'all' ? Number(selectedWorkType) : undefined,
                     minPrice: minPrice ? Number(minPrice) : undefined,
                     maxPrice: maxPrice ? Number(maxPrice) : undefined,
-                    page: currentPage,
+                    page: page,
                     pageSize: PAGE_SIZE
                 });
             }
 
             const newItems = Array.isArray(data) ? data : data.items || [];
-            const totalCount = data.totalCount || 0;
+            const newTotalCount = data.totalCount || newItems.length; // Fallback if API doesn't return totalCount
 
-            if (resetPage) {
-                setOrders(newItems);
-            } else {
-                setOrders(prev => [...prev, ...newItems]);
-            }
-
-            // Client role usually returns all items in current my-orders implementation, strict pagination mostly for Executor exchange
-            if (userRole === 'Executor') {
-                setHasMore(newItems.length === PAGE_SIZE && orders.length + newItems.length < totalCount);
-                // Better logic: if we received full page, there MIGHT be more. 
-                // Or use totalCount if available. PagedResult has TotalCount.
-                // Correct logic with TotalCount:
-                const currentTotal = resetPage ? newItems.length : orders.length + newItems.length;
-                setHasMore(currentTotal < totalCount);
-            } else {
-                setHasMore(false);
-            }
+            // Just replace items for the current page
+            setOrders(newItems);
+            setTotalCount(newTotalCount);
+            setTotalPages(data.totalPages || Math.ceil(newTotalCount / PAGE_SIZE) || 1);
 
         } catch (error) {
             console.error(error);
@@ -177,42 +162,12 @@ export default function OrdersPageClient() {
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        fetchOrders(true);
-    };
-
-    const handleLoadMore = async () => {
-        const nextPage = page + 1;
-        setPage(nextPage);
-
-        // Manual fetch for next page
-        setIsLoadingMore(true);
-        try {
-            const data = await orderService.getAllOrders({
-                search: searchQuery,
-                disciplineId: selectedDiscipline !== 'all' ? Number(selectedDiscipline) : undefined,
-                workTypeId: selectedWorkType !== 'all' ? Number(selectedWorkType) : undefined,
-                minPrice: minPrice ? Number(minPrice) : undefined,
-                maxPrice: maxPrice ? Number(maxPrice) : undefined,
-                page: nextPage,
-                pageSize: PAGE_SIZE
-            });
-
-            const newItems = Array.isArray(data) ? data : data.items || [];
-
-            setOrders(prev => [...prev, ...newItems]);
-            setHasMore(orders.length + newItems.length < (data.totalCount || 0));
-
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setIsLoadingMore(false);
-        }
+        // Triggered by effect via state
     };
 
     return (
         <div className="space-y-8">
-
-            {/* Хедер і Контроли */}
+            {/* Header and Controls */}
             <div className="flex flex-col gap-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-6">
                     <div>
@@ -224,6 +179,11 @@ export default function OrdersPageClient() {
                                 ? 'Керуйте своїми поточними завданнями та проектами.'
                                 : 'Знаходьте нові завдання та заробляйте.'}
                         </p>
+                        {userRole === 'Executor' && totalCount > 0 && (
+                            <div className="mt-2">
+                                <Badge variant="secondary">Всього знайдено: {totalCount}</Badge>
+                            </div>
+                        )}
                     </div>
 
                     {userRole === 'Client' && (
@@ -236,11 +196,11 @@ export default function OrdersPageClient() {
                     )}
                 </div>
 
-                {/* Пошук для Виконавця */}
+                {/* Executor Search & Filters */}
                 {userRole === 'Executor' && (
                     <div className="space-y-4">
                         <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
-                            {/* Текстовий пошук */}
+                            {/* Text Search */}
                             <div className="relative flex-1">
                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
@@ -251,13 +211,12 @@ export default function OrdersPageClient() {
                                 />
                             </div>
 
-                            {/* Фільтри Цін */}
+                            {/* Price Filters */}
                             <div className="flex gap-2 shrink-0">
                                 <Input
                                     placeholder="Мін. ціна"
                                     type="number"
                                     className="w-28 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-
                                     min={0}
                                     value={minPrice}
                                     onChange={(e) => {
@@ -288,21 +247,13 @@ export default function OrdersPageClient() {
                                     setMaxPrice('');
                                     setSelectedDiscipline('all');
                                     setSelectedWorkType('all');
-                                    // Trigger fetch immediately after resetting state requires a useEffect or manual call with cleared params.
-                                    // For simplicity, we just clear UI and user hits Search, or we call fetchOrders() but logic needs to read from state which might not be updated yet.
-                                    // Let's just clear and call fetch with cleared params manually:
-                                    // Actually, let's keep it simple: clear inputs, user clicks search.
-                                    // Or better: auto-fetch on reset?
-                                    // Let's simply reset state and call fetch with empty object logic if we extract fetch logic.
-                                    // For now, reload page or just reset state.
-                                    // Let's just reset state.
                                 }} title="Скинути">
                                     <RefreshCcw className="h-4 w-4" />
                                 </Button>
                             </div>
                         </form>
 
-                        {/* Додаткові Фільтри (Дисципліна/Тип) */}
+                        {/* Additional Filters */}
                         <div className="flex flex-col sm:flex-row gap-4">
                             <div className="w-full sm:w-[200px]">
                                 <Select value={selectedDiscipline} onValueChange={setSelectedDiscipline}>
@@ -336,7 +287,7 @@ export default function OrdersPageClient() {
                 )}
             </div>
 
-            {/* Список */}
+            {/* List */}
             {isLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {[1, 2, 3].map(i => (
@@ -364,7 +315,7 @@ export default function OrdersPageClient() {
                 </Card>
             ) : (
                 <div className="flex flex-col gap-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
+                    <div className="flex flex-col gap-6">
                         {orders.map((order) => (
                             <OrderListItem
                                 key={order.id}
@@ -374,28 +325,21 @@ export default function OrdersPageClient() {
                         ))}
                     </div>
 
-                    {hasMore && (
-                        <div className="flex justify-center pb-8">
-                            <Button
-                                variant="outline"
-                                size="lg"
-                                onClick={handleLoadMore}
-                                disabled={isLoadingMore}
-                                className="min-w-[200px]"
-                            >
-                                {isLoadingMore ? (
-                                    <>
-                                        <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
-                                        Завантаження...
-                                    </>
-                                ) : (
-                                    'Завантажити ще'
-                                )}
-                            </Button>
-                        </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <PaginationControls
+                            currentPage={page}
+                            totalPages={totalPages}
+                            onPageChange={(p) => {
+                                setPage(p);
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                        />
                     )}
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 }

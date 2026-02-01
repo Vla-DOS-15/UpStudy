@@ -1,7 +1,10 @@
+
+
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using UpStudy.Dtos;
 using UpStudy.Dtos.Payments;
 using UpStudy.Interfaces;
 using UpStudy.Models;
@@ -12,16 +15,19 @@ public class PaymentService : IPaymentService
 {
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
-    private readonly IChatService _chatService; // Щоб сповіщати про статус
+    private readonly IChatService _chatService;
+    private readonly IS3Service _s3Service;
 
-    public PaymentService(ApplicationDbContext context, IConfiguration configuration, IChatService chatService)
+    public PaymentService(ApplicationDbContext context, IConfiguration configuration, IChatService chatService, IS3Service s3Service)
     {
         _context = context;
         _configuration = configuration;
         _chatService = chatService;
+        _s3Service = s3Service;
     }
 
-    // --- 6.0 ГЕНЕРАЦІЯ CHEKOUT ---
+    // ... (LiqPay methods omitted for brevity, keeping existing) ...
+
     public async Task<LiqPayCheckoutDto> CreateCommissionCheckoutAsync(Guid orderId, string userId)
     {
         var order = await _context.Orders.FindAsync(orderId);
@@ -108,55 +114,156 @@ public class PaymentService : IPaymentService
         }
     }
 
-    // --- 6.2 ПРЯМІ РАХУНКИ (INVOICES) ---
-    public async Task<DirectPaymentRequest> CreateInvoiceAsync(string executorId, CreateInvoiceDto dto)
+    // --- 6.2 ПРЯМІ РАХУНКИ (Payment Requests) ---
+    public async Task<PaymentRequestDto> CreateRequestAsync(string userId, CreatePaymentRequestDto dto)
     {
-        var order = await _context.Orders.FindAsync(dto.OrderId);
-        if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
-        if (order.ExecutorId != executorId) throw new UnauthorizedAccessException("Ви не виконавець цього замовлення");
-        if (order.Status != OrderStatus.InProgress) throw new InvalidOperationException("Замовлення має бути в роботі");
+        var order = await _context.Orders
+            .Include(o => o.Executor)
+            .FirstOrDefaultAsync(o => o.Id == dto.OrderId);
 
-        var invoice = new DirectPaymentRequest
+        if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
+        if (order.ExecutorId != userId) throw new UnauthorizedAccessException("Ви не виконавець цього замовлення");
+        // Можна дозволити створювати запити і в статусі New, якщо треба передоплата, 
+        // але зазвичай це InProgress. Якщо логіка вимагає - розкоментуйте:
+        // if (order.Status != OrderStatus.InProgress) ...
+
+        var executor = await _context.Users.FindAsync(userId);
+        if (string.IsNullOrEmpty(executor?.BankCardNumber))
+            throw new InvalidOperationException("Будь ласка, додайте номер картки у своєму профілі перед створенням запиту.");
+
+        var request = new DirectPaymentRequest
         {
             OrderId = dto.OrderId,
             Amount = dto.Amount,
             Comment = dto.Comment,
             Status = PaymentRequestStatus.Pending,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            // Зберігаємо зліпок даних карти
+            CardNumber = executor.BankCardNumber,
+            CardOwnerName = executor.BankCardOwnerName ?? "Unknown"
         };
 
-        _context.DirectPaymentRequests.Add(invoice);
+        _context.DirectPaymentRequests.Add(request);
         await _context.SaveChangesAsync();
 
         // Сповіщення в чат
-        await _chatService.SendSystemMessageAsync(order.Id, $"🧾 Виконавець виставив рахунок на суму {dto.Amount} грн. Коментар: {dto.Comment}");
+        await _chatService.SendSystemMessageAsync(order.Id, $"🧾 Виконавець виставив рахунок на суму {dto.Amount} грн.\nКоментар: {dto.Comment}");
 
-        return invoice;
+        return await MapToDtoAsync(request);
     }
 
-    public async Task MarkInvoiceAsPaidAsync(Guid invoiceId, string clientId)
+    public async Task<PaymentRequestDto> UploadReceiptAsync(Guid requestId, string userId, IFormFile file)
     {
-        var invoice = await _context.DirectPaymentRequests.Include(i => i.Order).FirstOrDefaultAsync(i => i.Id == invoiceId);
-        if (invoice == null) throw new KeyNotFoundException();
-        if (invoice.Order.ClientId != clientId) throw new UnauthorizedAccessException();
+        var request = await _context.DirectPaymentRequests
+            .Include(r => r.Order)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
 
-        invoice.Status = PaymentRequestStatus.MarkedAsPaid;
+        if (request == null) throw new KeyNotFoundException("Запит не знайдено");
+        if (request.Order.ClientId != userId) throw new UnauthorizedAccessException("Ви не клієнт цього замовлення");
+
+        var key = await _s3Service.UploadFileAsync(file, "receipts");
+
+        request.ReceiptS3Key = key;
+        request.Status = PaymentRequestStatus.MarkedAsPaid; // Клієнт завантажив чек = "Оплатив"
+        
         await _context.SaveChangesAsync();
         
-        await _chatService.SendSystemMessageAsync(invoice.OrderId, $"💳 Клієнт позначив рахунок на {invoice.Amount} грн як оплачений. Очікується підтвердження виконавця.");
+        await _chatService.SendSystemMessageAsync(request.OrderId, $"💳 Клієнт прикріпив чек до рахунку на {request.Amount} грн. Очікується підтвердження.");
+
+        return await MapToDtoAsync(request);
     }
 
-    public async Task ConfirmInvoiceAsync(Guid invoiceId, string executorId)
+    public async Task<PaymentRequestDto> ConfirmPaymentAsync(Guid requestId, string userId)
     {
-        var invoice = await _context.DirectPaymentRequests.Include(i => i.Order).FirstOrDefaultAsync(i => i.Id == invoiceId);
-        if (invoice == null) throw new KeyNotFoundException();
-        if (invoice.Order.ExecutorId != executorId) throw new UnauthorizedAccessException();
+        var request = await _context.DirectPaymentRequests
+            .Include(r => r.Order)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
 
-        invoice.Status = PaymentRequestStatus.Confirmed;
-        invoice.PaidAt = DateTime.UtcNow;
+        if (request == null) throw new KeyNotFoundException("Запит не знайдено");
+        if (request.Order.ExecutorId != userId) throw new UnauthorizedAccessException("Ви не виконавець цього замовлення");
+
+        request.Status = PaymentRequestStatus.Confirmed;
+        request.PaidAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        await _chatService.SendSystemMessageAsync(invoice.OrderId, $"💰 Виконавець підтвердив отримання {invoice.Amount} грн.");
+        await _chatService.SendSystemMessageAsync(request.OrderId, $"💰 Виконавець підтвердив отримання {request.Amount} грн.");
+
+        // Check if Order is fully paid? (Optional logic)
+        
+        return await MapToDtoAsync(request);
+    }
+
+    public async Task<PaymentRequestDto> RejectPaymentAsync(Guid requestId, string userId, RejectPaymentDto dto)
+    {
+        var request = await _context.DirectPaymentRequests
+            .Include(r => r.Order)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
+
+        if (request == null) throw new KeyNotFoundException("Запит не знайдено");
+        if (request.Order.ExecutorId != userId) throw new UnauthorizedAccessException("Ви не виконавець цього замовлення");
+
+        request.Status = PaymentRequestStatus.Rejected;
+        request.RejectReason = dto.Reason;
+        // Optionally clear receipt so client can upload new one? Or keep history.
+        // Keeping history is better, client might need to create NEW payment attempt or we allow re-upload.
+        // If we allow re-upload, we might need a status like 'ReceiptRejected'.
+        // For now, simple 'Rejected'.
+        
+        await _context.SaveChangesAsync();
+        
+        await _chatService.SendSystemMessageAsync(request.OrderId, $"❌ Оплата відхилена. Причина: {dto.Reason}");
+
+        return await MapToDtoAsync(request);
+    }
+
+    public async Task<List<PaymentRequestDto>> GetRequestsByOrderAsync(Guid orderId, string userId)
+    {
+        // Перевірка доступу (клієнт або виконавець цього ордера)
+        var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
+        if (order == null) return new List<PaymentRequestDto>();
+        
+        if (order.ClientId != userId && order.ExecutorId != userId) 
+            throw new UnauthorizedAccessException("Немає доступу до цього замовлення");
+
+        var requests = await _context.DirectPaymentRequests
+            .Where(r => r.OrderId == orderId)
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync();
+
+        var result = new List<PaymentRequestDto>();
+
+        foreach(var r in requests)
+        {
+            result.Add(await MapToDtoAsync(r));
+        }
+        return result;
+    }
+
+    private async Task<PaymentRequestDto> MapToDtoAsync(DirectPaymentRequest r)
+    {
+        string? receiptUrl = null;
+        if (!string.IsNullOrEmpty(r.ReceiptS3Key))
+        {
+            try
+            {
+                receiptUrl = await _s3Service.GetPresignedViewUrlAsync(r.ReceiptS3Key);
+            }
+            catch { /* Ignore if fails */ }
+        }
+
+        return new PaymentRequestDto
+        {
+            Id = r.Id,
+            Amount = r.Amount,
+            Comment = r.Comment,
+            Status = r.Status.ToString(),
+            CardNumber = r.CardNumber,
+            CardOwnerName = r.CardOwnerName,
+            ReceiptUrl = receiptUrl, 
+            RejectReason = r.RejectReason,
+            CreatedAt = r.CreatedAt,
+            PaidAt = r.PaidAt
+        };
     }
 
     // Helper: Генерація підпису LiqPay (Base64(SHA1(PrivateKey + Data + PrivateKey)))

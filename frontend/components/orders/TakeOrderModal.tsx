@@ -20,8 +20,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const formSchema = z.object({
-    price: z.number().min(1, 'Вкажіть суму більше 0'),
-    comment: z.string().optional(),
+    price: z.number().min(20, 'Мінімальна сума - 20 ₴').max(200000, 'Максимальна сума - 200 000 ₴'),
+    comment: z.string().optional().refine(val => !val || val.length >= 10, {
+        message: "Коментар має містити щонайменше 10 символів",
+    }),
 });
 
 interface TakeOrderModalProps {

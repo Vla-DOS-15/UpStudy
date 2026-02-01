@@ -34,6 +34,10 @@ public class OrderPreviewDto
     public string ClientName { get; set; } = string.Empty;
     public string ClientId { get; set; } = string.Empty;
     public string? ExecutorId { get; set; }
+    
+    // Нові поля для активних замовлень (щоб не ходити на деталі)
+    public string Description { get; set; } = string.Empty;
+    public List<AttachmentDto> Attachments { get; set; } = new();
 }
 
 // Обгортка для пагінації

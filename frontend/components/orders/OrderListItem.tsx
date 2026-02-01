@@ -7,7 +7,7 @@ import { uk } from 'date-fns/locale';
 import {
   Clock, CalendarDays, Eye, FileText, Download,
   Loader2, Users, MessageSquare, ChevronDown, ChevronUp,
-  UserCircle, Award, Star, CheckCircle, MoreVertical, Pencil, Trash
+  UserCircle, Award, Star, CheckCircle, MoreVertical, Pencil, Trash, Ban
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,11 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Reject Modal State
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [proposalToReject, setProposalToReject] = useState<string | null>(null);
+  const [isRejecting, setIsRejecting] = useState(false);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -77,7 +82,11 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
         const [detailsData, proposalsData] = await Promise.all([
           orderService.getOrderById(orderPreview.id),
           userRole === 'Client' || userRole === 'Executor'
-            ? orderService.getProposals(orderPreview.id).catch(() => [])
+            ? orderService.getProposals(orderPreview.id).catch((err) => {
+              console.error("Failed to load proposals for order " + orderPreview.id, err);
+              // If 403, it means backend didn't update or logic is wrong
+              return [];
+            })
             : Promise.resolve([])
         ]);
 
@@ -193,6 +202,35 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
     }
   };
 
+  const handleRejectExecutorClick = (proposalId: string) => {
+    setProposalToReject(proposalId);
+    setIsRejectModalOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!proposalToReject) return;
+
+    try {
+      setIsRejecting(true);
+      await orderService.rejectExecutor(orderPreview.id, proposalToReject);
+      toast.success("Пропозицію відхилено");
+
+      // Update UI
+      setFullOrder((prev: any) => ({
+        ...prev,
+        consultants: prev.consultants.filter((c: any) => c.id !== proposalToReject)
+      }));
+
+      setIsRejectModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Не вдалося відхилити пропозицію");
+    } finally {
+      setIsRejecting(false);
+      setProposalToReject(null);
+    }
+  };
+
   // ОНОВЛЕНИЙ Рендер картки консультанта (горизонтальний вигляд)
   const renderConsultantCard = (consultant: any) => (
     <Card key={consultant.id} className="group overflow-hidden border hover:shadow-md transition-shadow p-4">
@@ -235,15 +273,29 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
             </span>
           </div>
 
-          {/* Кнопка Чату (тільки іконка) */}
-          <Button
-            size="icon"
-            variant="outline"
-            className="h-10 w-10 rounded-full border-muted-foreground/20 hover:border-primary hover:text-primary transition-colors"
-            onClick={() => handleOpenChat(consultant.userId)}
-          >
-            <MessageSquare className="w-5 h-5" />
-          </Button>
+          {/* Кнопка Чату (тільки для Клієнта) */}
+          {userRole === 'Client' && (
+            <div className="flex gap-2">
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-10 w-10 rounded-full border-muted-foreground/20 hover:border-red-500 hover:text-red-500 transition-colors"
+                onClick={() => handleRejectExecutorClick(consultant.id)}
+                title="Відхилити"
+              >
+                <Ban className="w-5 h-5" />
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-10 w-10 rounded-full border-muted-foreground/20 hover:border-primary hover:text-primary transition-colors"
+                onClick={() => handleOpenChat(consultant.userId)}
+                title="Відкрити чат"
+              >
+                <MessageSquare className="w-5 h-5" />
+              </Button>
+            </div>
+          )}
         </div>
 
       </div>
@@ -554,6 +606,27 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Reject Confirmation Modal */}
+      <Dialog open={isRejectModalOpen} onOpenChange={setIsRejectModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Відхилити кандидата?</DialogTitle>
+            <DialogDescription>
+              Ви впевнені, що хочете відхилити цього кандидата? Він більше не зможе подати заявку на це замовлення.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRejectModalOpen(false)} disabled={isRejecting}>
+              Скасувати
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmReject} disabled={isRejecting}>
+              {isRejecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Ban className="mr-2 h-4 w-4" />}
+              Відхилити
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

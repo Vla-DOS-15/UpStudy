@@ -18,4 +18,10 @@ public class UpdateOrderDto
 
     public int DisciplineId { get; set; }
     public int WorkTypeId { get; set; }
+
+    // Для завантаження нових файлів
+    public List<IFormFile>? NewFiles { get; set; }
+
+    // Для видалення існуючих файлів (список ID)
+    public List<Guid>? DeletedFileIds { get; set; }
 }

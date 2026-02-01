@@ -12,7 +12,7 @@ public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
     private readonly IS3Service _s3Service;
-
+    // Trigger rebuild 
     public OrdersController(IOrderService orderService, IS3Service s3Service)
     {
         _orderService = orderService;
@@ -89,7 +89,7 @@ public class OrdersController : ControllerBase
     // --- 2.1 PUT: Редагування замовлення ---
     [HttpPut("{id}")]
     [Authorize]
-    public async Task<IActionResult> UpdateOrder(Guid id, [FromBody] UpdateOrderDto dto)
+    public async Task<IActionResult> UpdateOrder(Guid id, [FromForm] UpdateOrderDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
@@ -176,7 +176,7 @@ public class OrdersController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ex.Message);
+            return BadRequest(new { Error = "DEBUG: " + ex.ToString() });
         }
     }
     
@@ -190,6 +190,26 @@ public class OrdersController : ControllerBase
         {
             await _orderService.AcceptExecutorAsync(id, userId!, dto.ProposalId);
             return Ok(new { Message = "Виконавця прийнято. Кошти заморожено." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpPost("{id}/reject-executor")]
+    [Authorize]
+    public async Task<IActionResult> RejectExecutor(Guid id, [FromBody] AcceptExecutorDto dto)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        try
+        {
+            await _orderService.RejectExecutorAsync(id, userId!, dto.ProposalId);
+            return Ok(new { Message = "Пропозицію відхилено." });
         }
         catch (InvalidOperationException ex)
         {
@@ -314,6 +334,24 @@ public class OrdersController : ControllerBase
         {
             var orders = await _orderService.GetUserOrdersAsync(userId);
             return Ok(orders);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpGet("my-proposals")]
+    [Authorize]
+    public async Task<IActionResult> GetMyProposals()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            var proposals = await _orderService.GetUserProposalsAsync(userId);
+            return Ok(proposals);
         }
         catch (Exception ex)
         {

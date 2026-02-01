@@ -66,7 +66,10 @@ public class OrderService : IOrderService
     
     public async Task<Order> UpdateOrderAsync(Guid orderId, string userId, UpdateOrderDto dto)
     {
-        var order = await _context.Orders.Include(o => o.Proposals).FirstOrDefaultAsync(o => o.Id == orderId);
+        var order = await _context.Orders
+            .Include(o => o.Proposals)
+            .Include(o => o.Attachments) // Include Attachments for file management
+            .FirstOrDefaultAsync(o => o.Id == orderId);
         if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
         if (order.ClientId != userId) throw new UnauthorizedAccessException("Ви не можете редагувати чуже замовлення");
         if (order.Status != OrderStatus.New) throw new InvalidOperationException("Замовлення вже в роботі.");
@@ -87,6 +90,41 @@ public class OrderService : IOrderService
         order.Deadline = dto.Deadline.ToUniversalTime();
         order.DisciplineId = dto.DisciplineId;
         order.WorkTypeId = dto.WorkTypeId;
+
+        // 1. Delete files
+        if (dto.DeletedFileIds != null && dto.DeletedFileIds.Any())
+        {
+            var filesToDelete = order.Attachments
+                .Where(a => dto.DeletedFileIds.Contains(a.Id))
+                .ToList();
+
+            foreach (var file in filesToDelete)
+            {
+                // Delete from S3
+                await _s3Service.DeleteFileAsync(file.S3Key);
+                // Remove from DB
+                order.Attachments.Remove(file);
+            }
+        }
+
+        // 2. Add new files
+        if (dto.NewFiles != null && dto.NewFiles.Any())
+        {
+            foreach (var file in dto.NewFiles)
+            {
+                // Upload to "orders" folder
+                var s3Key = await _s3Service.UploadFileAsync(file, "orders");
+                
+                order.Attachments.Add(new OrderAttachment
+                {
+                    OrderId = order.Id,
+                    OriginalFileName = file.FileName,
+                    S3Key = s3Key,
+                    UploadedAt = DateTime.UtcNow,
+                    IsResultWork = false
+                });
+            }
+        }
 
         _context.Orders.Update(order);
         await _context.SaveChangesAsync();
@@ -129,48 +167,44 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
         throw new KeyNotFoundException("Замовлення не знайдено");
 
     // 2. Перевірка прав (тільки замовник бачить ставки)
-    if (order.ClientId != userId)
-        throw new UnauthorizedAccessException("Тільки автор замовлення може бачити ставки.");
+    // UPD: Дозволяємо перегляд списку виконавців іншим користувачам, але приховуємо деталі (коментар, ціну)
+    bool isClient = order.ClientId == userId;
+
     var specializations = new List<string>();
     specializations.Add("Програмування");
     specializations.Add("Електромеханіка");
     specializations.Add("Фізика");
 
     // 3. Мапимо базові дані (без асинхронних операцій S3)
-    var proposalsDto = order.Proposals.Select(p => new OrderProposalDto
-    {
-        Id = p.Id,
-        Price = p.Price,
-        Comment = p.Comment,
-        Status = p.Status.ToString(),
-        ExecutorId = p.ExecutorId,
-        ExecutorName = p.Executor != null 
-            ? $"{p.Executor.FirstName} {p.Executor.LastName}" 
-            : "Невідомий",
-        
-        // --- Нові поля ---
-        ExecutorRating = 4.5, // Припускаємо, що в AppUser є поле Rating
-        ExecutorIsVerified = p.Executor?.IsVerified ?? false, // Припускаємо, що в AppUser є IsVerified
-        
-        // Якщо є поле CompletedOrdersCount в юзері - беремо його, 
-        // або ставимо 0, якщо ще не реалізували лічильник
-        ExecutorCompletedProjects = 2, 
+    var proposalsDto = order.Proposals.Select(p => {
+        bool isMyProposal = p.ExecutorId == userId;
+        bool canSeeDetails = isClient || isMyProposal;
 
-        // Мапимо спеціалізації (якщо це окрема сутність)
-        ExecutorSpecializations = specializations,
-
-        // Тимчасово записуємо ключ (шлях) до файлу, URL згенеруємо нижче
-        ExecutorAvatar = p.Executor?.AvatarS3Key 
+        return new OrderProposalDto
+        {
+            Id = p.Id,
+            Price = canSeeDetails ? p.Price : 0, // Приховуємо ціну для інших
+            Comment = canSeeDetails ? p.Comment : "Приховано", // Приховуємо коментар
+            Status = p.Status.ToString(),
+            ExecutorId = p.ExecutorId,
+            ExecutorName = p.Executor != null 
+                ? (p.Executor.UserName ?? "Unknown") 
+                : "Unknown",
+            
+            // --- Нові поля ---
+            ExecutorRating = 4.5,
+            ExecutorIsVerified = p.Executor?.IsVerified ?? false, 
+            ExecutorCompletedProjects = 2, 
+            ExecutorSpecializations = specializations,
+            ExecutorAvatar = p.Executor?.AvatarS3Key 
+        };
     }).ToList();
 
     // 4. 🔥 Генеруємо S3 посилання для аватарів (це асинхронна операція)
-    // Якщо у вас аватари це просто публічні URL, цей крок можна пропустити
     foreach (var proposal in proposalsDto)
     {
         if (!string.IsNullOrEmpty(proposal.ExecutorAvatar))
         {
-            // Генеруємо Presigned URL на 60 хвилин
-            // Якщо proposal.ExecutorAvatar вже є посиланням (http...), то метод GetPresignedViewUrlAsync має це враховувати і повертати як є
             proposal.ExecutorAvatar = await _s3Service.GetPresignedViewUrlAsync(proposal.ExecutorAvatar, expirationMinutes: 60);
         }
     }
@@ -213,11 +247,36 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
         // Поки залишаємо New, але з заповненим ExecutorId.
 
         proposal.Status = ProposalStatus.Accepted;
+        
+        // 3. Автоматично відхиляємо всі інші пропозиції
+        var otherProposals = order.Proposals.Where(p => p.Id != proposalId && p.Status == ProposalStatus.Pending).ToList();
+        foreach (var other in otherProposals)
+        {
+            other.Status = ProposalStatus.Rejected;
+        }
 
         await _context.SaveChangesAsync();
         
         // 4.3 Системне сповіщення
         await _chatService.SendSystemMessageAsync(order.Id, "Виконавця обрано. Очікується оплата комісії.");
+    }
+
+
+
+    public async Task RejectExecutorAsync(Guid orderId, string clientId, Guid proposalId)
+    {
+        var order = await _context.Orders
+            .Include(o => o.Proposals)
+            .FirstOrDefaultAsync(o => o.Id == orderId);
+
+        if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
+        if (order.ClientId != clientId) throw new UnauthorizedAccessException("Це не ваше замовлення");
+
+        var proposal = order.Proposals.FirstOrDefault(p => p.Id == proposalId);
+        if (proposal == null) throw new KeyNotFoundException("Пропозицію не знайдено");
+
+        proposal.Status = ProposalStatus.Rejected;
+        await _context.SaveChangesAsync();
     }
 
     // 2.4 ЗАВЕРШИТИ ЗАМОВЛЕННЯ (ПЕРЕКАЗ КОШТІВ)
@@ -510,7 +569,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             DisciplineName = order.Discipline?.Name ?? "Не вказано",
             WorkTypeId = order.WorkTypeId,
             WorkTypeName = order.WorkType?.Name ?? "Не вказано",
-            ClientName = order.Client != null ? $"{order.Client.FirstName} {order.Client.LastName}" : "Невідомий",
+            ClientName = order.Client != null ? (order.Client.UserName ?? "Unknown") : "Unknown",
             ClientId = order.ClientId,
             ExecutorId = order.ExecutorId,
 
@@ -521,7 +580,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
     
     public async Task<List<OrderPreviewDto>> GetUserOrdersAsync(string userId)
     {
-        return await _context.Orders
+        var orders = await _context.Orders
             .AsNoTracking()
             .Include(o => o.Discipline)
             .Include(o => o.WorkType)
@@ -542,10 +601,105 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 Status = o.Status.ToString(),
                 DisciplineName = o.Discipline.Name,
                 WorkTypeName = o.WorkType.Name,
-                ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
+                ClientName = o.Client.UserName ?? "Unknown",
                 ClientId = o.ClientId,
-                ExecutorId = o.ExecutorId
+                ExecutorId = o.ExecutorId,
+                Description = o.Description,
+                Attachments = o.Attachments.Select(a => new AttachmentDto
+                {
+                    Id = a.Id,
+                    OriginalFileName = a.OriginalFileName,
+                    S3Key = a.S3Key // URL генеруватиметься на фронті або в окремому методі, але тут ми повертаємо DTO. 
+                    // Стоп, AttachmentDto зазвичай має Url? Перевіримо DTO.
+                    // Якщо AttachmentDto має Url, нам треба s3Service.GetPresignedUrl... 
+                    // Але в Select (IQueryable) ми не можемо викликати async методи s3Service.
+                    // Тому ми повернемо S3Key, а URL згенеруємо пізніше, або змінимо логіку.
+                    // ДЛЯ ПРОСТОТИ: Зараз повернемо як є, але AttachmentDto перевіримо.
+                }).ToList()
+            })
+            // Після матеріалізації (ToListAsync) можна пройтись і додати URL, якщо треба.
+            .ToListAsync();
+            
+        // Генерація URL для файлів (оскільки це async)
+        foreach (var order in orders)
+        {
+            foreach (var attachment in order.Attachments)
+            {
+                // Тут ми маємо доступ до S3Key з мапінгу?
+                // AttachmentDto повинен мати S3Key або ми використовуємо Url.
+                // Перевіримо AttachmentDto.
+                // Припустимо, що ми заповнимо Url тут.
+                attachment.DownloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(attachment.S3Key ?? ""); 
+                attachment.ViewUrl = await _s3Service.GetPresignedViewUrlAsync(attachment.S3Key ?? "");
+            }
+        }
+
+        return orders;
+    }
+
+    public async Task<List<OrderWithMyProposalDto>> GetUserProposalsAsync(string userId)
+    {
+        var orders = await _context.Orders
+            .AsNoTracking()
+            .Include(o => o.Discipline)
+            .Include(o => o.WorkType)
+            .Include(o => o.Client)
+            .Include(o => o.Proposals) // Include proposals to filter
+            .Where(o => o.Proposals.Any(p => p.ExecutorId == userId))
+            .OrderByDescending(o => o.CreatedAt)
+            .Select(o => new {
+                Order = o,
+                Proposal = o.Proposals.FirstOrDefault(p => p.ExecutorId == userId)
             })
             .ToListAsync();
+
+        var result = new List<OrderWithMyProposalDto>();
+
+        foreach (var item in orders)
+        {
+            var o = item.Order;
+            var p = item.Proposal;
+            
+            if (p == null) continue;
+
+            var dto = new OrderWithMyProposalDto
+            {
+                Id = o.Id,
+                Title = o.Title,
+                Price = o.Price,
+                IsNegotiable = o.IsNegotiable,
+                Deadline = o.Deadline,
+                CreatedAt = o.CreatedAt,
+                Status = o.Status.ToString(),
+                DisciplineName = o.Discipline.Name,
+                WorkTypeName = o.WorkType.Name,
+                ClientName = o.Client.UserName ?? "Unknown",
+                ClientId = o.ClientId,
+                ExecutorId = o.ExecutorId,
+                Description = o.Description,
+                
+                MyProposalId = p.Id,
+                MyProposalStatus = p.Status.ToString(),
+                MyPrice = p.Price,
+                
+                Attachments = o.Attachments.Select(a => new AttachmentDto
+                {
+                    Id = a.Id,
+                    OriginalFileName = a.OriginalFileName,
+                    S3Key = a.S3Key
+                }).ToList()
+            };
+
+            // Generate URLs
+            foreach (var attachment in dto.Attachments)
+            {
+                attachment.DownloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(attachment.S3Key ?? ""); 
+                attachment.ViewUrl = await _s3Service.GetPresignedViewUrlAsync(attachment.S3Key ?? "");
+            }
+
+            result.Add(dto);
+        }
+
+        return result;
     }
 }

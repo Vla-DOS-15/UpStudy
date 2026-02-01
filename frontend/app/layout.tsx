@@ -5,6 +5,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from '@/context/AuthContext';
 import { Toaster } from "@/components/ui/sonner"; // Важливо: імпорт з компонента UI
 import { cn } from '@/lib/utils'; // Утиліта для класів
+import { Footer } from '@/components/layout/footer';
+
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'] }); // Додав кирилицю для кращого відображення укр. мови
 
@@ -37,6 +39,7 @@ export default function RootLayout({
             <Toaster />
           </ThemeProvider>
         </AuthProvider>
+        <Footer />
       </body>
     </html>
   );

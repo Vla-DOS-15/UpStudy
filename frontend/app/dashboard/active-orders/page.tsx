@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { format, differenceInDays } from 'date-fns';
 import { uk } from 'date-fns/locale';
-import { MessageSquare, Clock, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { MessageSquare, Clock, FileText, CheckCircle, AlertCircle, Loader2, Download } from 'lucide-react';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -72,7 +72,7 @@ export default function ActiveOrdersPage() {
   const formatDeadline = (dateStr: string) => {
     const date = new Date(dateStr);
     const daysLeft = differenceInDays(date, new Date());
-    const formattedDate = format(date, 'd MMMM yyyy', { locale: uk });
+    const formattedDate = format(date, 'd MMMM yyyy HH:mm', { locale: uk });
 
     let daysText = '';
     if (daysLeft < 0) daysText = '(прострочено)';
@@ -101,38 +101,64 @@ export default function ActiveOrdersPage() {
               </span>
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={() => handleChat(order)} className="shrink-0">
-            <MessageSquare className="mr-2 h-4 w-4" /> Чат
+          <Button variant="ghost" size="icon" onClick={() => handleChat(order)} className="shrink-0 h-8 w-8 text-muted-foreground hover:text-foreground">
+            <MessageSquare className="h-5 w-5" />
           </Button>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4" />
-            <span className={`font-medium ${new Date(order.deadline) < new Date() ? 'text-red-500' : ''}`}>
-              Дедлайн: {formatDeadline(order.deadline)}
-            </span>
-          </div>
-          {order.price && (
+        <div className="flex flex-col gap-4 text-sm text-muted-foreground">
+          {/* Час та Бюджет */}
+          <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground">Бюджет:</span>
-              <span className="text-green-600 font-bold">{order.price} ₴</span>
+              <Clock className="w-4 h-4" />
+              <span className={`font-medium ${new Date(order.deadline) < new Date() ? 'text-red-500' : ''}`}>
+                Дедлайн: {formatDeadline(order.deadline)}
+              </span>
+            </div>
+            {order.price && (
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-foreground">Бюджет:</span>
+                <span className="text-green-600 font-bold">{order.price} ₴</span>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Повний опис */}
+          <div>
+            <span className="font-semibold text-foreground block mb-1">Опис завдання:</span>
+            <p className="whitespace-pre-wrap leading-relaxed text-foreground/90">
+              {order.description || "Опис відсутній."}
+            </p>
+          </div>
+
+          {/* Файли */}
+          {order.attachments && order.attachments.length > 0 && (
+            <div>
+              <span className="font-semibold text-foreground block mb-2">Прикріплені файли:</span>
+              <div className="flex flex-wrap gap-2">
+                {order.attachments.map((file: any) => (
+                  <a
+                    key={file.id}
+                    href={file.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md hover:bg-muted/80 transition-colors border text-sm"
+                  >
+                    <FileText className="w-4 h-4 text-blue-500" />
+                    <span className="truncate max-w-[200px]">{file.originalFileName}</span>
+                    <Download className="w-3 h-3 opacity-50" />
+                  </a>
+                ))}
+              </div>
             </div>
           )}
         </div>
       </CardContent>
-      <CardFooter className="pt-0 flex gap-3">
-        {/* Кнопки дій залежно від ролі і статусу */}
-        {!isClient && order.status === 'InProgress' && (
-          <Button className="w-full sm:w-auto" onClick={() => router.push(`/dashboard/orders/${order.id}`)}>
-            Здати роботу
-          </Button>
-        )}
-
-        <Button variant="ghost" className="w-full sm:w-auto" onClick={() => router.push(`/dashboard/orders/${order.id}`)}>
-          Деталі
-        </Button>
+      <CardFooter className="pt-0 flex gap-3 justify-end bg-muted/5 p-4 rounded-b-xl hidden">
+        {/* Footer hidden as actions are moved */}
       </CardFooter>
     </Card>
   );
