@@ -1,5 +1,6 @@
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ModeToggle } from '@/components/layout/mode-toggle';
+import { MessagesPopover } from '@/components/layout/messages-popover';
 import { Header } from '@/components/layout/Header'; // Або спрощений хедер для дашборду
 
 export default function DashboardLayout({
@@ -22,6 +23,7 @@ export default function DashboardLayout({
            <h1 className="text-xl font-semibold">UpStudy Dashboard</h1>
            <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground">Баланс: 0.00 ₴</span>
+              <MessagesPopover />
               <ModeToggle /> {/* Перемикач теми */}
               {/* Тут можна додати аватарку або сповіщення */}
            </div>

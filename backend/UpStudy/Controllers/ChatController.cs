@@ -19,6 +19,23 @@ public class ChatController : ControllerBase
         _chatService = chatService;
     }
 
+    [HttpGet("my-chats")]
+    public async Task<IActionResult> GetMyChats()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        
+        try
+        {
+            var chats = await _chatService.GetUserChatsAsync(userId);
+            return Ok(chats);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
     [HttpGet("{orderId}")]
     public async Task<IActionResult> GetChatHistory(Guid orderId, [FromQuery] string? candidateId = null)
     {

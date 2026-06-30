@@ -365,4 +365,48 @@ public class ChatService : IChatService
         if (user == null) throw new KeyNotFoundException("Користувача не знайдено");
         return user.LastActive;
     }
+
+    public async Task<List<ChatOverviewDto>> GetUserChatsAsync(string userId)
+    {
+        var chats = await _context.Chats
+            .Include(c => c.Order)
+                .ThenInclude(o => o.Client)
+            .Include(c => c.Messages)
+            .Where(c => c.Order.ClientId == userId || c.ParticipantId == userId || c.Order.ExecutorId == userId)
+            .ToListAsync();
+
+        var overviewList = new List<ChatOverviewDto>();
+
+        foreach (var chat in chats)
+        {
+            var otherUserId = chat.Order.ClientId == userId 
+                ? (chat.ParticipantId ?? chat.Order.ExecutorId)
+                : chat.Order.ClientId;
+
+            if (string.IsNullOrEmpty(otherUserId)) continue;
+
+            var otherUser = await _context.Users.FindAsync(otherUserId);
+            var lastMessage = chat.Messages.OrderByDescending(m => m.SentAt).FirstOrDefault();
+            
+            string? avatarUrl = null;
+            if (!string.IsNullOrEmpty(otherUser?.AvatarS3Key))
+            {
+                avatarUrl = await _s3Service.GetPresignedViewUrlAsync(otherUser.AvatarS3Key);
+            }
+
+            overviewList.Add(new ChatOverviewDto
+            {
+                ChatId = chat.Id,
+                OrderId = chat.OrderId,
+                OrderTitle = chat.Order.Title,
+                OtherUserName = otherUser != null ? $"{otherUser.FirstName} {otherUser.LastName}" : "Невідомий",
+                OtherUserAvatar = avatarUrl,
+                LastMessage = lastMessage?.Text ?? (lastMessage != null && lastMessage.Text == string.Empty ? "Файл" : null),
+                LastMessageTime = lastMessage?.SentAt,
+                UnreadCount = 0 // Unread logic requires tracking which messages are read. For now, 0.
+            });
+        }
+
+        return overviewList.OrderByDescending(c => c.LastMessageTime ?? DateTime.MinValue).ToList();
+    }
 }
