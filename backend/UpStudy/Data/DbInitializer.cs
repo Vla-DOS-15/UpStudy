@@ -139,7 +139,161 @@ public static class DbInitializer
             IsCommissionPaid = true // Комісія оплачена
         };
 
-        context.Orders.AddRange(orderNew, orderProgress);
+        // --- Замовлення 3: НОВЕ ---
+        var order3 = new Order
+        {
+            Id = Guid.NewGuid(),
+            Title = "Розробка мобільного додатку (React Native)",
+            Description = "Потрібно створити простий додаток для обліку витрат. Дизайн є.",
+            Price = 4000,
+            ExecutorPrice = 3400,
+            PlatformCommission = 600,
+            IsNegotiable = true,
+            Deadline = DateTime.UtcNow.AddDays(14),
+            CreatedAt = DateTime.UtcNow.AddDays(-2),
+            Status = OrderStatus.New,
+            ClientId = clientUser.Id,
+            DisciplineId = discWeb.Id,
+            WorkTypeId = typeCourse.Id,
+            IsCommissionPaid = false
+        };
+
+        // --- Замовлення 4: НОВЕ ---
+        var order4 = new Order
+        {
+            Id = Guid.NewGuid(),
+            Title = "Дослідження ринку (Мікроекономіка)",
+            Description = "Зробити аналіз ринку кави у Києві. 10 сторінок.",
+            Price = 800,
+            ExecutorPrice = 680,
+            PlatformCommission = 120,
+            IsNegotiable = false,
+            Deadline = DateTime.UtcNow.AddDays(5),
+            CreatedAt = DateTime.UtcNow.AddHours(-10),
+            Status = OrderStatus.New,
+            ClientId = clientUser.Id,
+            DisciplineId = discMicro.Id,
+            WorkTypeId = typeLab.Id,
+            IsCommissionPaid = false
+        };
+
+        // --- Замовлення 5: НОВЕ ---
+        var order5 = new Order
+        {
+            Id = Guid.NewGuid(),
+            Title = "Telegram бот на C#",
+            Description = "Бот для техпідтримки. Повинен приймати заявки та зберігати в БД.",
+            Price = 1500,
+            ExecutorPrice = 1275,
+            PlatformCommission = 225,
+            IsNegotiable = true,
+            Deadline = DateTime.UtcNow.AddDays(10),
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            Status = OrderStatus.New,
+            ClientId = clientUser.Id,
+            DisciplineId = discCSharp.Id,
+            WorkTypeId = typeLab.Id,
+            IsCommissionPaid = false
+        };
+
+        // --- Замовлення 6: В РОБОТІ ---
+        var order6 = new Order
+        {
+            Id = Guid.NewGuid(),
+            Title = "Диплом з мікроекономіки",
+            Description = "Тема: Вплив інфляції на малий бізнес. 60 сторінок.",
+            Price = 12000,
+            ExecutorPrice = 10200,
+            PlatformCommission = 1800,
+            IsNegotiable = false,
+            Deadline = DateTime.UtcNow.AddDays(30),
+            CreatedAt = DateTime.UtcNow.AddDays(-5),
+            Status = OrderStatus.InProgress,
+            ClientId = clientUser.Id,
+            ExecutorId = executorUser.Id,
+            DisciplineId = discMicro.Id,
+            WorkTypeId = typeDiploma.Id,
+            IsCommissionPaid = true
+        };
+
+        // --- Замовлення 7: НОВЕ ---
+        var order7 = new Order
+        {
+            Id = Guid.NewGuid(),
+            Title = "Створення лендінгу (HTML/CSS/JS)",
+            Description = "Верстка односторінкового сайту для барбершопу.",
+            Price = 2500,
+            ExecutorPrice = 2125,
+            PlatformCommission = 375,
+            IsNegotiable = true,
+            Deadline = DateTime.UtcNow.AddDays(4),
+            CreatedAt = DateTime.UtcNow.AddHours(-2),
+            Status = OrderStatus.New,
+            ClientId = clientUser.Id,
+            DisciplineId = discWeb.Id,
+            WorkTypeId = typeLab.Id,
+            IsCommissionPaid = false
+        };
+
+        // --- Замовлення 8: ВИКОНАНО ---
+        var order8 = new Order
+        {
+            Id = Guid.NewGuid(),
+            Title = "Калькулятор на C# (Windows Forms)",
+            Description = "Простий калькулятор, 4 дії + корінь.",
+            Price = 500,
+            ExecutorPrice = 425,
+            PlatformCommission = 75,
+            IsNegotiable = false,
+            Deadline = DateTime.UtcNow.AddDays(-1),
+            CreatedAt = DateTime.UtcNow.AddDays(-10),
+            Status = OrderStatus.Completed,
+            ClientId = clientUser.Id,
+            ExecutorId = executorUser.Id,
+            DisciplineId = discCSharp.Id,
+            WorkTypeId = typeLab.Id,
+            IsCommissionPaid = true
+        };
+
+        // --- Замовлення 9: НОВЕ ---
+        var order9 = new Order
+        {
+            Id = Guid.NewGuid(),
+            Title = "Парсер новин на C#",
+            Description = "Потрібно зібрати заголовки з 3 сайтів і зберегти в CSV.",
+            Price = 1800,
+            ExecutorPrice = 1530,
+            PlatformCommission = 270,
+            IsNegotiable = true,
+            Deadline = DateTime.UtcNow.AddDays(7),
+            CreatedAt = DateTime.UtcNow.AddDays(-3),
+            Status = OrderStatus.New,
+            ClientId = clientUser.Id,
+            DisciplineId = discCSharp.Id,
+            WorkTypeId = typeCourse.Id,
+            IsCommissionPaid = false
+        };
+
+        // --- Замовлення 10: НОВЕ ---
+        var order10 = new Order
+        {
+            Id = Guid.NewGuid(),
+            Title = "Курсова робота з Web-технологій",
+            Description = "Розробка блогу на Next.js + TailwindCSS. Звіт + код.",
+            Price = 3500,
+            ExecutorPrice = 2975,
+            PlatformCommission = 525,
+            IsNegotiable = false,
+            Deadline = DateTime.UtcNow.AddDays(20),
+            CreatedAt = DateTime.UtcNow.AddHours(-1),
+            Status = OrderStatus.New,
+            ClientId = clientUser.Id,
+            DisciplineId = discWeb.Id,
+            WorkTypeId = typeCourse.Id,
+            IsCommissionPaid = false
+        };
+
+        context.Orders.AddRange(orderNew, orderProgress, order3, order4, order5, order6, order7, order8, order9, order10);
         await context.SaveChangesAsync();
 
         // ==========================================

@@ -13,4 +13,5 @@ public interface IChatService
     Task<ChatMessageDto> SaveFileMessageAsync(Guid orderId, string senderId, IFormFile file, string? candidateId = null);
     Task SendSystemMessageAsync(Guid orderId, string text); // Для виклику з OrderService
     Task<DateTime> GetUserLastActiveAsync(string userId);
+    Task<List<ChatOverviewDto>> GetUserChatsAsync(string userId);
 }
