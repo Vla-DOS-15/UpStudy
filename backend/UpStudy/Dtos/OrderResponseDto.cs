@@ -3,6 +3,7 @@ namespace UpStudy.Dtos;
 public class OrderResponseDto
 {
     public Guid Id { get; set; }
+    public int OrderNumber { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public decimal? Price { get; set; }
@@ -20,6 +21,14 @@ public class OrderResponseDto
     public string ClientId { get; set; } = string.Empty; // Корисно для посилання на профіль
     public string? ExecutorId { get; set; } // Щоб знати, чи є вже виконавець
     public int ViewsCount { get; set; }
+    
+    // Індикатор для виконавця
+    public bool HasMyProposal { get; set; }
+
+    public bool IsCommissionPaid { get; set; }
+    public decimal PlatformCommission { get; set; }
+    public UpStudy.Models.CommissionPaymentStatus CommissionPaymentStatus { get; set; }
+    public string? CommissionRejectReason { get; set; }
 
     public List<AttachmentDto> Attachments { get; set; } = new();
 }

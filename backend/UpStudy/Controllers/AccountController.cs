@@ -15,13 +15,13 @@ public class AccountController : ControllerBase
 {
     private readonly IAuthService _authService;
     private readonly UserManager<AppUser> _userManager;
-    private readonly IS3Service _s3Service;
+    private readonly IR2Service _r2Service;
 
-    public AccountController(IAuthService authService, UserManager<AppUser> userManager,  IS3Service s3Service)
+    public AccountController(IAuthService authService, UserManager<AppUser> userManager,  IR2Service r2Service)
     {
         _authService = authService;
         _userManager = userManager;
-        _s3Service =  s3Service;
+        _r2Service =  r2Service;
     }
 
     [HttpPost("change-password")]
@@ -61,10 +61,10 @@ public class AccountController : ControllerBase
         {
             // 1. Завантажуємо Паспорт (Приватний файл!)
             // isPublicRead = false (за замовчуванням)
-            var passportKey = await _s3Service.UploadFileAsync(dto.Passport, "verification-docs/passports");
+            var passportKey = await _r2Service.UploadFileAsync(dto.Passport, "verification-docs/passports");
         
             // 2. Завантажуємо Диплом (Приватний файл!)
-            var diplomaKey = await _s3Service.UploadFileAsync(dto.Diploma, "verification-docs/diplomas");
+            var diplomaKey = await _r2Service.UploadFileAsync(dto.Diploma, "verification-docs/diplomas");
 
             // 3. Оновлюємо користувача
             user.PassportS3Key = passportKey;

@@ -1,11 +1,25 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace UpStudy.Models;
+
+public enum CommissionPaymentStatus
+{
+    None = 0,
+    Submitted = 1,
+    Approved = 2,
+    Rejected = 3
+}
 
 public class Order
 {
     [Key]
     public Guid Id { get; set; } = Guid.NewGuid();
+    
+    // Автоінкрементний номер замовлення (для UI)
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public int OrderNumber { get; set; }
+
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     
@@ -20,6 +34,11 @@ public class Order
     
     // Чи оплачена комісія платформи?
     public bool IsCommissionPaid { get; set; } = false;
+    
+    // Ручне підтвердження оплати комісії
+    public CommissionPaymentStatus CommissionPaymentStatus { get; set; } = CommissionPaymentStatus.None;
+    public string? CommissionReceiptS3Key { get; set; }
+    public string? CommissionRejectReason { get; set; }
     
     // Зв'язок з транзакціями прямих оплат (див. нижче)
     public List<DirectPaymentRequest> PaymentRequests { get; set; } = new();

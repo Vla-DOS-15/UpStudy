@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UpStudy.Dtos.Admin;
 using UpStudy.Interfaces;
@@ -12,10 +12,12 @@ namespace UpStudy.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly IAdminService _adminService;
+    private readonly IOrderService _orderService;
 
-    public AdminController(IAdminService adminService)
+    public AdminController(IAdminService adminService, IOrderService orderService)
     {
         _adminService = adminService;
+        _orderService = orderService;
     }
 
     [HttpGet("verifications")]
@@ -66,5 +68,43 @@ public class AdminController : ControllerBase
     {
         await _adminService.ToggleBlockUserAsync(userId, dto.IsBlocked);
         return Ok(new { Message = dto.IsBlocked ? "Користувача заблоковано" : "Користувача розблоковано" });
+    }
+
+    [HttpGet("commissions/pending")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetPendingCommissions()
+    {
+        var result = await _orderService.GetPendingCommissionPaymentsAsync();
+        return Ok(result);
+    }
+
+    [HttpPost("commissions/{orderId}/approve")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ApproveCommission(Guid orderId)
+    {
+        try 
+        {
+            await _orderService.ApproveCommissionAsync(orderId);
+            return Ok(new { Message = "Комісію підтверджено" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+    }
+
+    [HttpPost("commissions/{orderId}/reject")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> RejectCommission(Guid orderId, [FromBody] RejectDto dto)
+    {
+        try 
+        {
+            await _orderService.RejectCommissionAsync(orderId, dto.Reason);
+            return Ok(new { Message = "Комісію відхилено" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
     }
 }

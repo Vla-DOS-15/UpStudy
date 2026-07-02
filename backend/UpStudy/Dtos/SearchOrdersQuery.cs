@@ -19,6 +19,7 @@ public class SearchOrdersQuery
 public class OrderPreviewDto
 {
     public Guid Id { get; set; }
+    public int OrderNumber { get; set; }
     public string Title { get; set; } = string.Empty;
     public decimal? Price { get; set; }
     public bool IsNegotiable { get; set; }
@@ -34,6 +35,9 @@ public class OrderPreviewDto
     public string ClientName { get; set; } = string.Empty;
     public string ClientId { get; set; } = string.Empty;
     public string? ExecutorId { get; set; }
+    
+    // Індикатор для виконавців, щоб знати статус власної ставки
+    public bool HasMyProposal { get; set; }
 }
 
 // Обгортка для пагінації

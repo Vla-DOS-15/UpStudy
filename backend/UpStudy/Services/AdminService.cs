@@ -10,13 +10,13 @@ public class AdminService : IAdminService
 {
     private readonly UserManager<AppUser> _userManager;
     private readonly ApplicationDbContext _context;
-    private readonly IS3Service _s3Service;
+    private readonly IR2Service _r2Service;
 
-    public AdminService(UserManager<AppUser> userManager, ApplicationDbContext context, IS3Service s3Service)
+    public AdminService(UserManager<AppUser> userManager, ApplicationDbContext context, IR2Service r2Service)
     {
         _userManager = userManager;
         _context = context;
-        _s3Service = s3Service;
+        _r2Service = r2Service;
     }
 
     // Отримати список заявок на верифікацію
@@ -41,11 +41,11 @@ public class AdminService : IAdminService
         if (user == null) throw new KeyNotFoundException("Користувача не знайдено");
 
         var passportUrl = user.PassportS3Key != null 
-            ? await _s3Service.GetPresignedViewUrlAsync(user.PassportS3Key) 
+            ? await _r2Service.GetPresignedViewUrlAsync(user.PassportS3Key) 
             : null;
             
         var diplomaUrl = user.DiplomaS3Key != null 
-            ? await _s3Service.GetPresignedViewUrlAsync(user.DiplomaS3Key) 
+            ? await _r2Service.GetPresignedViewUrlAsync(user.DiplomaS3Key) 
             : null;
 
         return new VerificationDetailsDto
@@ -83,7 +83,7 @@ public class AdminService : IAdminService
         user.VerificationRejectReason = reason;
 
         // Можна видаляти файли з S3, щоб не займати місце, або лишати для історії
-        // await _s3Service.DeleteFileAsync(user.PassportS3Key);
+        // await _r2Service.DeleteFileAsync(user.PassportS3Key);
 
         await _userManager.UpdateAsync(user);
     }

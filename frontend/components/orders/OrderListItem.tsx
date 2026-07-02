@@ -7,8 +7,9 @@ import { uk } from 'date-fns/locale';
 import {
   Clock, CalendarDays, Eye, FileText, Download,
   Loader2, Users, MessageSquare, ChevronDown, ChevronUp,
-  UserCircle, Award, Star, CheckCircle, MoreVertical, Pencil, Trash
+  UserCircle, Award, Star, CheckCircle, MoreVertical, Pencil, Trash, Edit
 } from 'lucide-react';
+import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -35,9 +36,11 @@ import { orderService } from '@/services/orderService';
 import { toast } from 'sonner';
 import { chatService } from '@/services/chatService';
 import TakeOrderModal from './TakeOrderModal';
+import { useAuth } from '@/context/AuthContext';
 
 interface OrderPreview {
   id: string;
+  orderNumber: number;
   title: string;
   status: string;
   price?: number;
@@ -47,6 +50,8 @@ interface OrderPreview {
   disciplineName: string;
   workTypeName: string;
   viewsCount?: number;
+  clientId?: string;
+  hasMyProposal?: boolean;
 }
 
 interface OrderListItemProps {
@@ -60,6 +65,7 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('task');
   const [isDescExpanded, setIsDescExpanded] = useState(false);
+  const { user } = useAuth();
 
   const [isTakeOrderModalOpen, setIsTakeOrderModalOpen] = useState(false);
   const [isCheckingChat, setIsCheckingChat] = useState(false);
@@ -76,9 +82,7 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
 
         const [detailsData, proposalsData] = await Promise.all([
           orderService.getOrderById(orderPreview.id),
-          userRole === 'Client' || userRole === 'Executor'
-            ? orderService.getProposals(orderPreview.id).catch(() => [])
-            : Promise.resolve([])
+          orderService.getProposals(orderPreview.id).catch(() => [])
         ]);
 
         if (isMounted) {
@@ -105,10 +109,12 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
       }
     };
 
-    fetchData();
+    if (user?.id) {
+        fetchData();
+    }
 
     return () => { isMounted = false; };
-  }, [orderPreview.id, userRole]);
+  }, [orderPreview.id, orderPreview.clientId, user?.id]);
 
   const formatPrice = (price?: number, isNegotiable?: boolean) => {
     if (isNegotiable) return 'Договірна';
@@ -138,7 +144,6 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
       toast.success("Замовлення успішно видалено");
       window.location.reload();
     } catch (error) {
-      console.error(error);
       toast.error("Не вдалося видалити замовлення");
       setIsDeleting(false);
     }
@@ -151,7 +156,7 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
       setHasChatHistory(messages.length > 0);
       setIsTakeOrderModalOpen(true);
     } catch (error) {
-      console.error(error);
+      // Hide Next.js overlay, handle via toast
       toast.error("Не вдалося перевірити статус чату");
     } finally {
       setIsCheckingChat(false);
@@ -178,7 +183,7 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
       window.location.reload();
 
     } catch (error: any) {
-      console.error(error);
+      // Hide Next.js overlay, show user-friendly message via toast
       toast.error(error.response?.data?.Error || "Не вдалося взяти замовлення");
     }
   };
@@ -188,7 +193,7 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
       const { chatId } = await chatService.initChat(orderPreview.id, candidateId);
       router.push(`/dashboard/chat/${chatId}`);
     } catch (error) {
-      console.error(error);
+      // Hide Next.js overlay
       toast.error("Не вдалося відкрити чат");
     }
   };
@@ -239,11 +244,34 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
           <Button
             size="icon"
             variant="outline"
-            className="h-10 w-10 rounded-full border-muted-foreground/20 hover:border-primary hover:text-primary transition-colors"
+            className="h-10 w-10 rounded-full border-muted-foreground/20 hover:border-primary hover:text-primary transition-colors shrink-0"
             onClick={() => handleOpenChat(consultant.userId)}
           >
             <MessageSquare className="w-5 h-5" />
           </Button>
+
+          {/* Кнопка прийняття для клієнта */}
+          {userRole === 'Client' && !fullOrder?.executorId && (
+            <Button
+              size="sm"
+              className="ml-2 shrink-0"
+              onClick={async () => {
+                try {
+                  setIsLoading(true);
+                  await orderService.acceptExecutor(orderPreview.id, consultant.id);
+                  toast.success("Виконавця обрано! Тепер потрібно сплатити комісію.");
+                  // Redirect to order details to pay commission
+                  router.push(`/dashboard/orders/${orderPreview.id}`);
+                } catch (error: any) {
+                  console.error(error);
+                  toast.error(error.response?.data?.Error || "Не вдалося обрати виконавця");
+                  setIsLoading(false);
+                }
+              }}
+            >
+              Обрати
+            </Button>
+          )}
         </div>
 
       </div>
@@ -310,7 +338,7 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
                 {orderPreview.disciplineName}
               </Badge>
               <span className="text-muted-foreground text-xs">•</span>
-              <span className="text-muted-foreground text-xs font-mono">#{orderPreview.id.slice(0, 8)}</span>
+              <span className="text-muted-foreground text-xs font-mono">#{orderPreview.orderNumber}</span>
             </div>
           </div>
         </div>
@@ -460,19 +488,47 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
               )}
             </div>
 
+            {/* Actions for Task (Client or Executor) */}
+            {userRole === 'Client' && (
+              <div className="pt-2 flex gap-3">
+                <Button variant="outline" className="flex-1 h-11 text-base font-medium border-primary/20 hover:bg-primary/5" size="lg" asChild>
+                  <Link href={`/dashboard/edit-order/${orderPreview.id}`}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Редагувати
+                  </Link>
+                </Button>
+                <Button variant="outline" className="flex-1 h-11 text-base font-medium text-destructive hover:bg-destructive hover:text-destructive-foreground border-destructive/20" size="lg" onClick={() => setIsDeleteModalOpen(true)}>
+                  <Trash className="w-4 h-4 mr-2" />
+                  Видалити
+                </Button>
+              </div>
+            )}
+            
             {userRole === 'Executor' && (
               <div className="pt-2 flex gap-3">
-                <Button
-                  variant="default"
-                  className="flex-1 h-11 text-base font-semibold shadow-sm"
-                  size="lg"
-                  onClick={handleTakeOrderClick}
-                  disabled={isCheckingChat}
-                >
-                  {isCheckingChat ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-                  Взяти замовлення
-                </Button>
-
+                {orderPreview.hasMyProposal ? (
+                  <Button
+                    variant="secondary"
+                    className="flex-1 h-11 text-base font-semibold shadow-sm opacity-80"
+                    size="lg"
+                    disabled
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
+                    Ви вже подали заявку
+                  </Button>
+                ) : (
+                  <Button
+                    variant="default"
+                    className="flex-1 h-11 text-base font-semibold shadow-sm"
+                    size="lg"
+                    onClick={handleTakeOrderClick}
+                    disabled={isCheckingChat}
+                  >
+                    {isCheckingChat ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                    Взяти замовлення
+                  </Button>
+                )}
+                
                 <Button
                   variant="outline"
                   className="h-11 w-11 shrink-0"
@@ -485,35 +541,6 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
               </div>
             )}
 
-            {/* Modal for Taking Order */}
-            <TakeOrderModal
-              isOpen={isTakeOrderModalOpen}
-              onClose={() => setIsTakeOrderModalOpen(false)}
-              onSubmit={handleTakeOrderSubmit}
-              showCommentInput={!hasChatHistory}
-              initialPrice={orderPreview.price || 0}
-            />
-
-            {/* Delete Confirmation Modal */}
-            <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Видалити замовлення?</DialogTitle>
-                  <DialogDescription>
-                    Цю дію неможливо скасувати. Замовлення буде видалено назавжди.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={isDeleting}>
-                    Скасувати
-                  </Button>
-                  <Button variant="destructive" onClick={onConfirmDelete} disabled={isDeleting}>
-                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash className="mr-2 h-4 w-4" />}
-                    Видалити
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </div>
         </TabsContent>
 
@@ -535,10 +562,17 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
                       Очікуйте пропозицій від експертів.
                     </p>
                     {userRole === 'Executor' && (
-                      <Button size="sm" className="mt-4" onClick={handleTakeOrderClick} disabled={isCheckingChat}>
-                        {isCheckingChat ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-                        Стати першим
-                      </Button>
+                      orderPreview.hasMyProposal ? (
+                        <div className="mt-4 flex items-center justify-center text-sm font-medium text-green-600 bg-green-50 px-3 py-2 rounded-md w-max mx-auto border border-green-200">
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Ви вже подали заявку
+                        </div>
+                      ) : (
+                        <Button size="sm" className="mt-4" onClick={handleTakeOrderClick} disabled={isCheckingChat}>
+                          {isCheckingChat ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                          Стати першим
+                        </Button>
+                      )
                     )}
                   </div>
                 ) : (
@@ -554,6 +588,36 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Modal for Taking Order */}
+      <TakeOrderModal
+        isOpen={isTakeOrderModalOpen}
+        onClose={() => setIsTakeOrderModalOpen(false)}
+        onSubmit={handleTakeOrderSubmit}
+        showCommentInput={!hasChatHistory}
+        initialPrice={orderPreview.price || 0}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Видалити замовлення?</DialogTitle>
+            <DialogDescription>
+              Цю дію неможливо скасувати. Замовлення буде видалено назавжди.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={isDeleting}>
+              Скасувати
+            </Button>
+            <Button variant="destructive" onClick={onConfirmDelete} disabled={isDeleting}>
+              {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash className="mr-2 h-4 w-4" />}
+              Видалити
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

@@ -11,12 +11,12 @@ namespace UpStudy.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
-    private readonly IS3Service _s3Service;
+    private readonly IR2Service _r2Service;
 
-    public OrdersController(IOrderService orderService, IS3Service s3Service)
+    public OrdersController(IOrderService orderService, IR2Service r2Service)
     {
         _orderService = orderService;
-        _s3Service = s3Service;
+        _r2Service = r2Service;
     }
 
     [HttpPost]
@@ -40,8 +40,8 @@ public class OrdersController : ControllerBase
             
             foreach (var attachment in createdOrder.Attachments)
             {
-                var viewUrl = await _s3Service.GetPresignedViewUrlAsync(attachment.S3Key, expirationMinutes: 60);
-                var downloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(attachment.S3Key, expirationMinutes: 60);
+                var viewUrl = await _r2Service.GetPresignedViewUrlAsync(attachment.S3Key, expirationMinutes: 60);
+                var downloadUrl = await _r2Service.GetPresignedDownloadUrlAsync(attachment.S3Key, expirationMinutes: 60);
                 
                 attachmentDtos.Add(new AttachmentDto
                 {
@@ -78,7 +78,8 @@ public class OrdersController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetOrderById(Guid id)
     {
-        var orderDto = await _orderService.GetOrderByIdAsync(id);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var orderDto = await _orderService.GetOrderByIdAsync(id, userId);
 
         if (orderDto == null) 
             return NotFound("Замовлення не знайдено");
@@ -172,7 +173,7 @@ public class OrdersController : ControllerBase
         }
         catch (UnauthorizedAccessException)
         {
-            return Forbid("Ви не маєте права переглядати ставки до цього замовлення.");
+            return StatusCode(403, new { Error = "Ви не маєте права переглядати ставки до цього замовлення." });
         }
         catch (Exception ex)
         {
@@ -275,9 +276,10 @@ public class OrdersController : ControllerBase
     // [Authorize] - розкоментуйте, якщо переглядати можуть тільки зареєстровані
     public async Task<IActionResult> GetOrders([FromQuery] SearchOrdersQuery query)
     {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         try
         {
-            var result = await _orderService.SearchOrdersAsync(query);
+            var result = await _orderService.SearchOrdersAsync(query, userId);
             return Ok(result);
         }
         catch (Exception ex)
@@ -314,6 +316,64 @@ public class OrdersController : ControllerBase
         {
             var orders = await _orderService.GetUserOrdersAsync(userId);
             return Ok(orders);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+    
+    [HttpGet("executor/pending")]
+    [Authorize]
+    public async Task<IActionResult> GetExecutorPendingOrders()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            var orders = await _orderService.GetPendingOrdersAsync(userId);
+            return Ok(orders);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpGet("executor/archive")]
+    [Authorize]
+    public async Task<IActionResult> GetExecutorArchivedOrders()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            var orders = await _orderService.GetArchivedOrdersAsync(userId);
+            return Ok(orders);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpPost("{id}/commission-receipt")]
+    [Authorize]
+    public async Task<IActionResult> UploadCommissionReceipt(Guid id, IFormFile file)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            await _orderService.UploadCommissionReceiptAsync(id, userId, file);
+            return Ok(new { Message = "Квитанцію успішно завантажено." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Error = ex.Message });
         }
         catch (Exception ex)
         {

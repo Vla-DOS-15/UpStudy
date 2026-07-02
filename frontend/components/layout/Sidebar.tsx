@@ -8,7 +8,8 @@ import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
   User, PlusCircle, FileText, Star, Wallet, HelpCircle, Search,
-  ChevronLeft, ChevronRight, LogOut, ShoppingBag, Briefcase
+  ChevronLeft, ChevronRight, LogOut, ShoppingBag, Briefcase,
+  Clock, Archive
 } from 'lucide-react'; // Додав ShoppingBag та Briefcase
 import {
   Tooltip,
@@ -46,7 +47,13 @@ export function Sidebar() {
     // 2. Поточні завдання (Active)
     { href: '/dashboard/active-orders', label: 'В роботі', icon: Briefcase },
 
-    // 3. Продаж готового (Магазин - майбутній функціонал)
+    // 3. В очікуванні (Pending)
+    { href: '/dashboard/pending-orders', label: 'В очікуванні', icon: Clock },
+
+    // 4. Архів (Archive)
+    { href: '/dashboard/archived-orders', label: 'Архів', icon: Archive },
+
+    // 5. Продаж готового (Магазин - майбутній функціонал)
     { href: '/dashboard/my-shop', label: 'Мої готові роботи', icon: ShoppingBag },
 
     { href: '/dashboard/balance', label: 'Баланс', icon: Wallet },
