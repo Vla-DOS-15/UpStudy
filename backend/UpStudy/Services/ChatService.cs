@@ -391,7 +391,7 @@ public class ChatService : IChatService
             string? avatarUrl = null;
             if (!string.IsNullOrEmpty(otherUser?.AvatarS3Key))
             {
-                avatarUrl = await _s3Service.GetPresignedViewUrlAsync(otherUser.AvatarS3Key);
+                avatarUrl = await _r2Service.GetPresignedViewUrlAsync(otherUser.AvatarS3Key);
             }
 
             overviewList.Add(new ChatOverviewDto
