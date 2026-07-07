@@ -63,9 +63,19 @@ export const orderService = {
     return response.data;
   },
 
+  async deleteProposal(id: string) {
+    const response = await api.delete(`/Proposals/${id}`);
+    return response.data;
+  },
+
   // ... інші методи без змін
   async createProposal(data: { orderId: string; price: number; comment?: string }) {
     const response = await api.post('/Proposals', data);
+    return response.data;
+  },
+
+  async acceptExecutor(orderId: string, proposalId: string) {
+    const response = await api.post(`/Orders/${orderId}/accept-executor`, { proposalId });
     return response.data;
   },
 
@@ -86,6 +96,16 @@ export const orderService = {
 
   async getAllOrders(query?: any) {
     const response = await api.get('/Orders', { params: query });
+    return response.data;
+  },
+
+  async getPendingOrders() {
+    const response = await api.get('/Orders/executor/pending');
+    return response.data;
+  },
+
+  async getArchivedOrders() {
+    const response = await api.get('/Orders/executor/archive');
     return response.data;
   },
 };

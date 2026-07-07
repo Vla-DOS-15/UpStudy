@@ -338,7 +338,7 @@ export default function OrdersPageClient() {
 
             {/* Список */}
             {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-6">
                     {[1, 2, 3].map(i => (
                         <div key={i} className="h-64 rounded-xl bg-muted/20 animate-pulse" />
                     ))}
@@ -364,7 +364,7 @@ export default function OrdersPageClient() {
                 </Card>
             ) : (
                 <div className="flex flex-col gap-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-6 items-start">
                         {orders.map((order) => (
                             <OrderListItem
                                 key={order.id}

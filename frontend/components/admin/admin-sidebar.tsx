@@ -8,7 +8,8 @@ import {
   FileCheck, 
   ShieldAlert, 
   LayoutDashboard, 
-  LogOut 
+  LogOut,
+  Banknote
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ export function AdminSidebar() {
     { href: '/admin', label: 'Огляд', icon: LayoutDashboard },
     { href: '/admin/verifications', label: 'Заявки верифікації', icon: FileCheck },
     { href: '/admin/users', label: 'Користувачі', icon: Users },
+    { href: '/admin/payments', label: 'Платежі', icon: Banknote },
     // { href: '/admin/reports', label: 'Скарги', icon: ShieldAlert }, // На майбутнє
   ];
 

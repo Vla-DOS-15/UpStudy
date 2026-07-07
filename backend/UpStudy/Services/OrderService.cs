@@ -8,15 +8,15 @@ namespace UpStudy.Services;
 public class OrderService : IOrderService
 {
     private readonly ApplicationDbContext _context;
-    private readonly IS3Service _s3Service;
+    private readonly IR2Service _r2Service;
     private readonly IChatService _chatService;
     
     private const decimal CommissionRate = 0.15m;
     
-    public OrderService(ApplicationDbContext context, IS3Service s3Service, IChatService chatService)
+    public OrderService(ApplicationDbContext context, IR2Service r2Service, IChatService chatService)
     {
         _context = context;
-        _s3Service = s3Service;
+        _r2Service = r2Service;
         _chatService = chatService;
     }
 
@@ -46,7 +46,7 @@ public class OrderService : IOrderService
             foreach (var file in dto.Files)
             {
                 // Завантажуємо в папку "orders"
-                var s3Key = await _s3Service.UploadFileAsync(file, "orders");
+                var s3Key = await _r2Service.UploadFileAsync(file, "orders");
                 
                 order.Attachments.Add(new OrderAttachment
                 {
@@ -128,16 +128,26 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
     if (order == null)
         throw new KeyNotFoundException("Замовлення не знайдено");
 
-    // 2. Перевірка прав (тільки замовник бачить ставки)
-    if (order.ClientId != userId)
-        throw new UnauthorizedAccessException("Тільки автор замовлення може бачити ставки.");
+    // 2. Перевірка прав (клієнт бачить всі, виконавець - тільки свою)
+    var isClient = order.ClientId == userId;
+    var proposalsList = order.Proposals.AsEnumerable();
+
+    if (!isClient)
+    {
+        var myProposals = proposalsList.Where(p => p.ExecutorId == userId).ToList();
+        if (!myProposals.Any())
+        {
+            throw new UnauthorizedAccessException("Тільки автор замовлення або учасник може бачити ставки.");
+        }
+        proposalsList = myProposals;
+    }
     var specializations = new List<string>();
     specializations.Add("Програмування");
     specializations.Add("Електромеханіка");
     specializations.Add("Фізика");
 
     // 3. Мапимо базові дані (без асинхронних операцій S3)
-    var proposalsDto = order.Proposals.Select(p => new OrderProposalDto
+    var proposalsDto = proposalsList.Select(p => new OrderProposalDto
     {
         Id = p.Id,
         Price = p.Price,
@@ -171,7 +181,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
         {
             // Генеруємо Presigned URL на 60 хвилин
             // Якщо proposal.ExecutorAvatar вже є посиланням (http...), то метод GetPresignedViewUrlAsync має це враховувати і повертати як є
-            proposal.ExecutorAvatar = await _s3Service.GetPresignedViewUrlAsync(proposal.ExecutorAvatar, expirationMinutes: 60);
+            proposal.ExecutorAvatar = await _r2Service.GetPresignedViewUrlAsync(proposal.ExecutorAvatar, expirationMinutes: 60);
         }
     }
 
@@ -337,10 +347,10 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
     }
     
     
-    public async Task<PagedResult<OrderPreviewDto>> SearchOrdersAsync(SearchOrdersQuery query)
+    public async Task<PagedResult<OrderPreviewDto>> SearchOrdersAsync(SearchOrdersQuery query, string? currentUserId)
     {
         var dbQuery = _context.Orders
-            .AsNoTracking()
+            .Include(o => o.Proposals)
             .Include(o => o.Discipline)
             .Include(o => o.WorkType)
             .Include(o => o.Client)
@@ -349,6 +359,12 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
         // При пошуку важливо: якщо замовлення має статус New, але вже має ExecutorId (чекає оплати комісії),
         // його, мабуть, не варто показувати в пошуку для інших виконавців.
         dbQuery = dbQuery.Where(o => o.ExecutorId == null);
+
+        // Фільтруємо замовлення, на які виконавець вже подав заявку
+        if (!string.IsNullOrEmpty(currentUserId))
+        {
+            dbQuery = dbQuery.Where(o => !o.Proposals.Any(p => p.ExecutorId == currentUserId));
+        }
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -379,6 +395,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             .Select(o => new OrderPreviewDto
             {
                 Id = o.Id,
+                OrderNumber = o.OrderNumber,
                 Title = o.Title,
                 Price = o.Price,
                 IsNegotiable = o.IsNegotiable,
@@ -387,7 +404,11 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 Status = o.Status.ToString(),
                 DisciplineName = o.Discipline.Name,
                 WorkTypeName = o.WorkType.Name,
-                ClientName = $"{o.Client.FirstName} {o.Client.LastName}"
+                ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
+                ClientId = o.ClientId,
+                ExecutorId = o.ExecutorId,
+                HasMyProposal = false, // Because they are filtered out
+                MyProposalId = null
             })
             .ToListAsync();
 
@@ -427,7 +448,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
         }
 
         // Генеруємо presigned URL (дійсний 1 годину)
-        return await _s3Service.GetPresignedDownloadUrlAsync(attachment.S3Key);
+        return await _r2Service.GetPresignedDownloadUrlAsync(attachment.S3Key);
     }
     
     public async Task<string> GetFileViewUrlAsync(Guid attachmentId, string userId, bool isAdmin = false)
@@ -445,7 +466,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
         if (attachment.IsResultWork && !hasAccess && !isAdmin)
             throw new UnauthorizedAccessException("Немає доступу");
 
-        return await _s3Service.GetPresignedViewUrlAsync(attachment.S3Key);
+        return await _r2Service.GetPresignedViewUrlAsync(attachment.S3Key);
     }
     
 
@@ -466,10 +487,11 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
         await _chatService.SendSystemMessageAsync(order.Id, "✅ Виконавець позначив роботу як виконану. Очікується перевірка замовником.");
     }
     
-    public async Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId)
+    public async Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId, string? currentUserId = null)
     {
         var order = await _context.Orders
             .AsNoTracking() // Важливо для GET запитів (швидкодія)
+            .Include(o => o.Proposals)
             .Include(o => o.Client)
             .Include(o => o.Discipline)
             .Include(o => o.WorkType)
@@ -487,35 +509,111 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 Id = att.Id,
                 OriginalFileName = att.OriginalFileName,
                 // Генеруємо тимчасові посилання (на 60 хвилин)
-                ViewUrl = await _s3Service.GetPresignedViewUrlAsync(att.S3Key, expirationMinutes: 60),
-                DownloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(att.S3Key, expirationMinutes: 60),
+                ViewUrl = await _r2Service.GetPresignedViewUrlAsync(att.S3Key, expirationMinutes: 60),
+                DownloadUrl = await _r2Service.GetPresignedDownloadUrlAsync(att.S3Key, expirationMinutes: 60),
                 UploadedAt = att.UploadedAt,
                 IsResultWork = att.IsResultWork
             });
         }
 
-        // Мапимо відповідь
-        return new OrderResponseDto
-        {
-            Id = order.Id,
-            Title = order.Title,
-            Description = order.Description,
-            Price = order.Price,
-            IsNegotiable = order.IsNegotiable,
-            Deadline = order.Deadline,
-            CreatedAt = order.CreatedAt,
-            Status = order.Status.ToString(),
-        
-            DisciplineId = order.DisciplineId,
-            DisciplineName = order.Discipline?.Name ?? "Не вказано",
-            WorkTypeId = order.WorkTypeId,
-            WorkTypeName = order.WorkType?.Name ?? "Не вказано",
-            ClientName = order.Client != null ? $"{order.Client.FirstName} {order.Client.LastName}" : "Невідомий",
-            ClientId = order.ClientId,
-            ExecutorId = order.ExecutorId,
+            var myProposal = string.IsNullOrEmpty(currentUserId) ? null : order.Proposals.FirstOrDefault(p => p.ExecutorId == currentUserId);
 
-            Attachments = attachmentDtos
-        };
+            // Мапимо відповідь
+            return new OrderResponseDto
+            {
+                Id = order.Id,
+                OrderNumber = order.OrderNumber,
+                Title = order.Title,
+                Description = order.Description,
+                Price = order.Price,
+                IsNegotiable = order.IsNegotiable,
+                Deadline = order.Deadline,
+                CreatedAt = order.CreatedAt,
+                Status = order.Status.ToString(),
+            
+                DisciplineId = order.DisciplineId,
+                DisciplineName = order.Discipline?.Name ?? "Не вказано",
+                WorkTypeId = order.WorkTypeId,
+                WorkTypeName = order.WorkType?.Name ?? "Не вказано",
+                ClientName = order.Client != null ? $"{order.Client.FirstName} {order.Client.LastName}" : "Невідомий",
+                ClientId = order.ClientId,
+                ExecutorId = order.ExecutorId,
+
+                IsCommissionPaid = order.IsCommissionPaid,
+                PlatformCommission = order.PlatformCommission,
+                CommissionPaymentStatus = order.CommissionPaymentStatus,
+                CommissionRejectReason = order.CommissionRejectReason,
+
+                Attachments = attachmentDtos,
+                HasMyProposal = myProposal != null,
+                MyProposalId = myProposal?.Id
+            };
+    }
+    
+    public async Task<List<OrderPreviewDto>> GetPendingOrdersAsync(string userId)
+    {
+        return await _context.Orders
+            .AsNoTracking()
+            .Include(o => o.Discipline)
+            .Include(o => o.WorkType)
+            .Include(o => o.Client)
+            .Include(o => o.Proposals)
+            .Where(o => o.Status == OrderStatus.New 
+                        && o.ExecutorId == null 
+                        && o.Proposals.Any(p => p.ExecutorId == userId && p.Status == ProposalStatus.Pending))
+            .OrderByDescending(o => o.CreatedAt)
+            .Select(o => new OrderPreviewDto
+            {
+                Id = o.Id,
+                OrderNumber = o.OrderNumber,
+                Title = o.Title,
+                Price = o.Price,
+                IsNegotiable = o.IsNegotiable,
+                Deadline = o.Deadline,
+                CreatedAt = o.CreatedAt,
+                Status = o.Status.ToString(),
+                DisciplineName = o.Discipline.Name,
+                WorkTypeName = o.WorkType.Name,
+                ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
+                ClientId = o.ClientId,
+                ExecutorId = o.ExecutorId,
+                HasMyProposal = true,
+                MyProposalId = o.Proposals.Where(p => p.ExecutorId == userId).Select(p => (Guid?)p.Id).FirstOrDefault()
+            })
+            .ToListAsync();
+    }
+
+    public async Task<List<OrderPreviewDto>> GetArchivedOrdersAsync(string userId)
+    {
+        return await _context.Orders
+            .AsNoTracking()
+            .Include(o => o.Discipline)
+            .Include(o => o.WorkType)
+            .Include(o => o.Client)
+            .Include(o => o.Proposals)
+            .Where(o => o.Proposals.Any(p => p.ExecutorId == userId) && 
+                        (o.Proposals.Any(p => p.ExecutorId == userId && p.Status == ProposalStatus.Rejected) || 
+                         (o.ExecutorId != null && o.ExecutorId != userId)))
+            .OrderByDescending(o => o.CreatedAt)
+            .Select(o => new OrderPreviewDto
+            {
+                Id = o.Id,
+                OrderNumber = o.OrderNumber,
+                Title = o.Title,
+                Price = o.Price,
+                IsNegotiable = o.IsNegotiable,
+                Deadline = o.Deadline,
+                CreatedAt = o.CreatedAt,
+                Status = o.Status.ToString(),
+                DisciplineName = o.Discipline.Name,
+                WorkTypeName = o.WorkType.Name,
+                ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
+                ClientId = o.ClientId,
+                ExecutorId = o.ExecutorId,
+                HasMyProposal = true,
+                MyProposalId = o.Proposals.Where(p => p.ExecutorId == userId).Select(p => (Guid?)p.Id).FirstOrDefault()
+            })
+            .ToListAsync();
     }
     
     
@@ -534,6 +632,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             .Select(o => new OrderPreviewDto
             {
                 Id = o.Id,
+                OrderNumber = o.OrderNumber,
                 Title = o.Title,
                 Price = o.Price,
                 IsNegotiable = o.IsNegotiable,
@@ -544,8 +643,89 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 WorkTypeName = o.WorkType.Name,
                 ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
                 ClientId = o.ClientId,
-                ExecutorId = o.ExecutorId
+                ExecutorId = o.ExecutorId,
+                HasMyProposal = o.ExecutorId == userId,
+                MyProposalId = null // Ми можемо не мати доступу до Proposals тут, але для UserOrders це зазвичай не потрібно для видалення
+
             })
             .ToListAsync();
+    }
+
+    public async Task UploadCommissionReceiptAsync(Guid orderId, string clientId, IFormFile file)
+    {
+        var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
+        if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
+        if (order.ClientId != clientId) throw new UnauthorizedAccessException("Ви не замовник цього проєкту");
+        if (order.ExecutorId == null) throw new InvalidOperationException("Спочатку оберіть виконавця");
+        if (order.IsCommissionPaid) throw new InvalidOperationException("Комісія вже оплачена");
+
+        if (file == null || file.Length == 0) throw new ArgumentException("Файл порожній");
+
+        var s3Key = await _r2Service.UploadFileAsync(file, "commission-receipts");
+
+        // Delete old receipt if exists (optional, could just keep it for history)
+        // if (!string.IsNullOrEmpty(order.CommissionReceiptS3Key)) await _r2Service.DeleteFileAsync(order.CommissionReceiptS3Key);
+
+        order.CommissionReceiptS3Key = s3Key;
+        order.CommissionPaymentStatus = CommissionPaymentStatus.Submitted;
+        order.CommissionRejectReason = null;
+
+        await _context.SaveChangesAsync();
+        await _chatService.SendSystemMessageAsync(order.Id, "Клієнт відправив квитанцію про оплату. Очікується перевірка адміністратором.");
+    }
+
+    public async Task<List<PendingCommissionDto>> GetPendingCommissionPaymentsAsync()
+    {
+        var orders = await _context.Orders
+            .Include(o => o.Client)
+            .Where(o => o.CommissionPaymentStatus == CommissionPaymentStatus.Submitted)
+            .OrderBy(o => o.CreatedAt)
+            .ToListAsync();
+
+        var result = new List<PendingCommissionDto>();
+        foreach (var o in orders)
+        {
+            var viewUrl = !string.IsNullOrEmpty(o.CommissionReceiptS3Key) 
+                ? await _r2Service.GetPresignedViewUrlAsync(o.CommissionReceiptS3Key)
+                : string.Empty;
+
+            result.Add(new PendingCommissionDto
+            {
+                OrderId = o.Id,
+                OrderTitle = o.Title,
+                CommissionAmount = o.PlatformCommission,
+                ClientId = o.ClientId,
+                ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
+                ReceiptViewUrl = viewUrl
+            });
+        }
+        return result;
+    }
+
+    public async Task ApproveCommissionAsync(Guid orderId)
+    {
+        var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
+        if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
+        if (order.CommissionPaymentStatus != CommissionPaymentStatus.Submitted) throw new InvalidOperationException("Замовлення не очікує перевірки комісії");
+
+        order.CommissionPaymentStatus = CommissionPaymentStatus.Approved;
+        order.IsCommissionPaid = true;
+        order.Status = OrderStatus.InProgress;
+
+        await _context.SaveChangesAsync();
+        await _chatService.SendSystemMessageAsync(order.Id, "Оплату комісії підтверджено! Замовлення переведено в статус 'В роботі'.");
+    }
+
+    public async Task RejectCommissionAsync(Guid orderId, string reason)
+    {
+        var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
+        if (order == null) throw new KeyNotFoundException("Замовлення не знайдено");
+        if (order.CommissionPaymentStatus != CommissionPaymentStatus.Submitted) throw new InvalidOperationException("Замовлення не очікує перевірки комісії");
+
+        order.CommissionPaymentStatus = CommissionPaymentStatus.Rejected;
+        order.CommissionRejectReason = reason;
+
+        await _context.SaveChangesAsync();
+        await _chatService.SendSystemMessageAsync(order.Id, $"Оплату комісії відхилено. Причина: {reason}. Будь ласка, завантажте коректну квитанцію.");
     }
 }

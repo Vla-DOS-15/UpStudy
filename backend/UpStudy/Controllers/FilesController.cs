@@ -13,12 +13,12 @@ namespace UpStudy.Controllers;
 public class FilesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    private readonly IS3Service _s3Service;
+    private readonly IR2Service _r2Service;
 
-    public FilesController(ApplicationDbContext context, IS3Service s3Service)
+    public FilesController(ApplicationDbContext context, IR2Service r2Service)
     {
         _context = context;
-        _s3Service = s3Service;
+        _r2Service = r2Service;
     }
 
     private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -46,7 +46,7 @@ public class FilesController : ControllerBase
         if (attachment.IsResultWork && !hasAccess)
             return Forbid();
 
-        var url = await _s3Service.GetPresignedDownloadUrlAsync(attachment.S3Key);
+        var url = await _r2Service.GetPresignedDownloadUrlAsync(attachment.S3Key);
         
         return Ok(new { url, expiresIn = 3600 }); // 1 година
     }
@@ -72,7 +72,7 @@ public class FilesController : ControllerBase
         if (attachment.IsResultWork && !hasAccess)
             return Forbid();
 
-        var url = await _s3Service.GetPresignedViewUrlAsync(attachment.S3Key);
+        var url = await _r2Service.GetPresignedViewUrlAsync(attachment.S3Key);
         
         return Ok(new { url, expiresIn = 3600 });
     }
@@ -100,7 +100,7 @@ public class FilesController : ControllerBase
         if (!hasAccess)
             return Forbid();
 
-        var url = await _s3Service.GetPresignedDownloadUrlAsync(attachment.S3Key);
+        var url = await _r2Service.GetPresignedDownloadUrlAsync(attachment.S3Key);
         
         return Ok(new { url, expiresIn = 3600 });
     }
@@ -129,16 +129,16 @@ public class FilesController : ControllerBase
         // Видаляємо старий аватар, якщо є
         if (!string.IsNullOrEmpty(user.AvatarS3Key))
         {
-            await _s3Service.DeleteFileAsync(user.AvatarS3Key);
+            await _r2Service.DeleteFileAsync(user.AvatarS3Key);
         }
 
         // Завантажуємо новий
-        var s3Key = await _s3Service.UploadFileAsync(file, "avatars");
+        var s3Key = await _r2Service.UploadFileAsync(file, "avatars");
         user.AvatarS3Key = s3Key;
         
         await _context.SaveChangesAsync();
 
-        var viewUrl = await _s3Service.GetPresignedViewUrlAsync(s3Key);
+        var viewUrl = await _r2Service.GetPresignedViewUrlAsync(s3Key);
         
         return Ok(new { s3Key, viewUrl });
     }
@@ -155,7 +155,7 @@ public class FilesController : ControllerBase
         if (user == null || string.IsNullOrEmpty(user.AvatarS3Key))
             return NotFound();
 
-        var url = await _s3Service.GetPresignedViewUrlAsync(user.AvatarS3Key);
+        var url = await _r2Service.GetPresignedViewUrlAsync(user.AvatarS3Key);
         
         return Ok(new { url, expiresIn = 3600 });
     }
@@ -172,7 +172,7 @@ public class FilesController : ControllerBase
         if (user == null || string.IsNullOrEmpty(user.AvatarS3Key))
             return NotFound();
 
-        await _s3Service.DeleteFileAsync(user.AvatarS3Key);
+        await _r2Service.DeleteFileAsync(user.AvatarS3Key);
         user.AvatarS3Key = null;
         
         await _context.SaveChangesAsync();

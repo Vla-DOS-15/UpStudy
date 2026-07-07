@@ -20,8 +20,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const formSchema = z.object({
-    price: z.number().min(1, 'Вкажіть суму більше 0'),
-    comment: z.string().optional(),
+    price: z.number().min(20, 'Мінімальна сума 20 ₴').max(200000, 'Максимальна сума 200 000 ₴'),
+    comment: z.string().optional().refine(val => !val || (val.length >= 10 && val.length <= 1000), {
+        message: 'Коментар має бути від 10 до 1000 символів'
+    }),
 });
 
 interface TakeOrderModalProps {
@@ -44,7 +46,7 @@ export default function TakeOrderModal({
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            price: initialPrice || 0,
+            price: initialPrice && initialPrice >= 20 ? initialPrice : 20,
             comment: '',
         },
     });
@@ -55,7 +57,7 @@ export default function TakeOrderModal({
             await onSubmit(values.price, values.comment);
             onClose();
         } catch (error) {
-            console.error(error);
+            // Error is handled and logged by parent component's onSubmit
         } finally {
             setIsSubmitting(false);
         }

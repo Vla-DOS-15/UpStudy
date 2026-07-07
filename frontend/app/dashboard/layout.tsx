@@ -1,4 +1,5 @@
 import { Sidebar } from '@/components/layout/Sidebar';
+import { MobileSidebar } from '@/components/layout/MobileSidebar';
 import { ModeToggle } from '@/components/layout/mode-toggle';
 import { MessagesPopover } from '@/components/layout/messages-popover';
 import { Header } from '@/components/layout/Header'; // Або спрощений хедер для дашборду
@@ -19,8 +20,12 @@ export default function DashboardLayout({
       <div className="flex-1 flex flex-col">
         
         {/* Верхня панель (Topbar) */}
-        <header className="h-16 border-b flex items-center justify-between px-6 bg-card sticky top-0 z-10">
-           <h1 className="text-xl font-semibold">UpStudy Dashboard</h1>
+        <header className="h-16 border-b flex items-center justify-between px-4 md:px-6 bg-card sticky top-0 z-10">
+           <div className="flex items-center gap-2">
+             <MobileSidebar />
+             <h1 className="text-xl font-semibold hidden sm:block">UpStudy Dashboard</h1>
+             <h1 className="text-xl font-semibold sm:hidden">UpStudy</h1>
+           </div>
            <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground">Баланс: 0.00 ₴</span>
               <MessagesPopover />

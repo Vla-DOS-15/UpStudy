@@ -15,9 +15,18 @@ public interface IOrderService
     Task OpenDisputeAsync(Guid orderId, string clientId);
     Task LeaveReviewAsync(Guid orderId, string clientId, CreateReviewDto dto);
     
-    Task<PagedResult<OrderPreviewDto>> SearchOrdersAsync(SearchOrdersQuery query);
+    Task<PagedResult<OrderPreviewDto>> SearchOrdersAsync(SearchOrdersQuery query, string? currentUserId);
+    Task<List<OrderPreviewDto>> GetPendingOrdersAsync(string userId);
+    Task<List<OrderPreviewDto>> GetArchivedOrdersAsync(string userId);
 
     Task SubmitForReviewAsync(Guid orderId, string executorId);
-    Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId);
+    
+    // Commission Payment Methods
+    Task UploadCommissionReceiptAsync(Guid orderId, string clientId, IFormFile file);
+    Task<List<PendingCommissionDto>> GetPendingCommissionPaymentsAsync();
+    Task ApproveCommissionAsync(Guid orderId);
+    Task RejectCommissionAsync(Guid orderId, string reason);
+
+    Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId, string? currentUserId = null);
     Task<List<OrderPreviewDto>> GetUserOrdersAsync(string userId);
 }

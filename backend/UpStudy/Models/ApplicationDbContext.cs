@@ -34,6 +34,13 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
             .OnDelete(DeleteBehavior.Cascade);
 
         // --- Order Configuration ---
+        builder.HasSequence<int>("OrderNumberSeq")
+            .StartsAt(1000)
+            .IncrementsBy(1);
+            
+        builder.Entity<Order>()
+            .Property(o => o.OrderNumber)
+            .HasDefaultValueSql("nextval('\"OrderNumberSeq\"')");
         
         // Замовник -> Замовлення
         builder.Entity<Order>()

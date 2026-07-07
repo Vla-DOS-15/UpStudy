@@ -123,13 +123,30 @@ var awsOptions = new Amazon.Extensions.NETCore.Setup.AWSOptions
     Credentials = new BasicAWSCredentials(
         builder.Configuration["AWS:AccessKey"],
         builder.Configuration["AWS:SecretKey"]
-    ),
-    Region = Amazon.RegionEndpoint.GetBySystemName(builder.Configuration["AWS:Region"])
+    )
 };
-builder.Services.AddDefaultAWSOptions(awsOptions);
-builder.Services.AddAWSService<IAmazonS3>();
+var serviceUrl = builder.Configuration["AWS:ServiceURL"];
+
+if (!string.IsNullOrEmpty(serviceUrl))
+{
+    // Cloudflare R2 / Custom S3 Compatible
+    var s3Config = new AmazonS3Config
+    {
+        ServiceURL = serviceUrl,
+        ForcePathStyle = true
+    };
+    builder.Services.AddSingleton<IAmazonS3>(sp => new AmazonS3Client(awsOptions.Credentials, s3Config));
+}
+else
+{
+    // Standard AWS S3
+    awsOptions.Region = Amazon.RegionEndpoint.GetBySystemName(builder.Configuration["AWS:Region"]);
+    builder.Services.AddDefaultAWSOptions(awsOptions);
+    builder.Services.AddAWSService<IAmazonS3>();
+}
 
 builder.Services.AddScoped<IS3Service, S3Service>();
+builder.Services.AddScoped<IR2Service, R2Service>();
 var app = builder.Build();
 
 // --- ВАЖЛИВО: Застосування міграцій при старті (Опціонально) ---

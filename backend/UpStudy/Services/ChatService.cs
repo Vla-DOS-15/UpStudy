@@ -12,12 +12,12 @@ public class ChatService : IChatService
 {
     private readonly ApplicationDbContext _context;
     private readonly IHubContext<ChatHub> _hubContext; // Тут HubContext ПОТРІБЕН
-    private readonly IS3Service _s3Service;
-    public ChatService(ApplicationDbContext context, IHubContext<ChatHub> hubContext, IS3Service s3Service)
+    private readonly IR2Service _r2Service;
+    public ChatService(ApplicationDbContext context, IHubContext<ChatHub> hubContext, IR2Service r2Service)
     {
         _context = context;
         _hubContext = hubContext;
-        _s3Service = s3Service;
+        _r2Service = r2Service;
     }
 
     public async Task<Guid> GetChatIdAsync(Guid orderId, string userId, string? candidateId = null)
@@ -88,8 +88,8 @@ public class ChatService : IChatService
             var attachmentDtos = new List<ChatAttachmentDto>();
             foreach (var a in m.Attachments)
             {
-                var viewUrl = await _s3Service.GetPresignedViewUrlAsync(a.S3Key, expirationMinutes: 60);
-                var downloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(a.S3Key, expirationMinutes: 60);
+                var viewUrl = await _r2Service.GetPresignedViewUrlAsync(a.S3Key, expirationMinutes: 60);
+                var downloadUrl = await _r2Service.GetPresignedDownloadUrlAsync(a.S3Key, expirationMinutes: 60);
                 attachmentDtos.Add(new ChatAttachmentDto
                 {
                     Id = a.Id,
@@ -187,7 +187,7 @@ public class ChatService : IChatService
         
         var chat = await GetOrCreateChatAsync(orderId, candidateId);
         
-        var s3Key = await _s3Service.UploadFileAsync(file, "chat-files");
+        var s3Key = await _r2Service.UploadFileAsync(file, "chat-files");
 
         var message = new ChatMessage 
         { 
@@ -209,8 +209,8 @@ public class ChatService : IChatService
         await _context.SaveChangesAsync();
         await _context.Entry(message).Reference(m => m.Sender).LoadAsync();
 
-        var viewUrl = await _s3Service.GetPresignedViewUrlAsync(s3Key);
-        var downloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(s3Key);
+        var viewUrl = await _r2Service.GetPresignedViewUrlAsync(s3Key);
+        var downloadUrl = await _r2Service.GetPresignedDownloadUrlAsync(s3Key);
 
         var dto = new ChatMessageDto
         {
@@ -310,7 +310,7 @@ public class ChatService : IChatService
         bool isParticipant = chat.Order.ClientId == senderId || chat.ParticipantId == senderId || chat.Order.ExecutorId == senderId;
         if (!isParticipant) throw new UnauthorizedAccessException("Access denied");
         
-        var s3Key = await _s3Service.UploadFileAsync(file, "chat-files");
+        var s3Key = await _r2Service.UploadFileAsync(file, "chat-files");
 
         var message = new ChatMessage 
         { 
@@ -332,8 +332,8 @@ public class ChatService : IChatService
         await _context.SaveChangesAsync();
         await _context.Entry(message).Reference(m => m.Sender).LoadAsync();
 
-        var viewUrl = await _s3Service.GetPresignedViewUrlAsync(s3Key);
-        var downloadUrl = await _s3Service.GetPresignedDownloadUrlAsync(s3Key);
+        var viewUrl = await _r2Service.GetPresignedViewUrlAsync(s3Key);
+        var downloadUrl = await _r2Service.GetPresignedDownloadUrlAsync(s3Key);
 
         var dto = new ChatMessageDto
         {
