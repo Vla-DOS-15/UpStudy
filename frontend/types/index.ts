@@ -10,6 +10,7 @@ export interface User {
   role?: string;
   isVerified: boolean;
   isVerificationPending: boolean;
+  avatarUrl?: string;
 }
 
 export interface AuthResponse {

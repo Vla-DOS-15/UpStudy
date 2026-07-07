@@ -12,6 +12,7 @@ interface AuthContextType {
   login: (data: LoginDto) => Promise<void>;
   register: (data: RegisterDto) => Promise<void>;
   logout: () => void;
+  updateUser: (updatedFields: Partial<User>) => void;
   isLoading: boolean;
 }
 
@@ -22,27 +23,52 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
+  const updateUser = (updatedFields: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...updatedFields } : null);
+  };
+
   useEffect(() => {
-    const token = Cookies.get('accessToken');
-    if (token) {
-      try {
-        const decoded: any = jwtDecode(token);
-        setUser({
-          id: decoded.nameid || decoded.sub,
-          email: decoded.email,
-          firstName: decoded.given_name || '',
-          lastName: decoded.family_name || '',
-          userName: decoded.family_name || '',
-          roles: decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [],
-          // Конвертуємо рядки "True"/"False" або булеві значення
-          isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
-          isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
-        });
-      } catch (e) {
-        logout();
+    const fetchUser = async () => {
+      const token = Cookies.get('accessToken');
+      if (token) {
+        try {
+          const decoded: any = jwtDecode(token);
+          let currentUser: User = {
+            id: decoded.nameid || decoded.sub,
+            email: decoded.email,
+            firstName: decoded.given_name || '',
+            lastName: decoded.family_name || '',
+            userName: decoded.family_name || '',
+            roles: decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [],
+            isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
+            isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
+          };
+          
+          setUser(currentUser); // Одразу встановлюємо базові дані з токена
+
+          try {
+            const { accountService } = await import('@/services/accountService');
+            const me = await accountService.getMe();
+            if (me) {
+              currentUser = {
+                ...currentUser,
+                firstName: me.firstName || currentUser.firstName,
+                lastName: me.lastName || currentUser.lastName,
+                avatarUrl: me.avatarUrl,
+              };
+              setUser(currentUser);
+            }
+          } catch (e) {
+            console.error('Failed to fetch full profile', e);
+          }
+        } catch (e) {
+          logout();
+        }
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+
+    fetchUser();
   }, []);
 
   const login = async (data: LoginDto) => {
@@ -96,7 +122,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -81,4 +81,66 @@ public class AccountController : ControllerBase
             return StatusCode(500, $"Помилка завантаження: {ex.Message}");
         }
     }
+
+    [HttpGet("me")]
+    public async Task<IActionResult> GetMe()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        var roles = await _userManager.GetRolesAsync(user);
+
+        string? avatarUrl = null;
+        if (!string.IsNullOrEmpty(user.AvatarS3Key))
+        {
+            avatarUrl = await _r2Service.GetPresignedViewUrlAsync(user.AvatarS3Key, 60 * 24 * 7); // 7 days expiration
+        }
+
+        var profile = new UserProfileDto
+        {
+            Id = user.Id,
+            Email = user.Email ?? string.Empty,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            UserName = user.UserName ?? string.Empty,
+            Roles = roles.ToList(),
+            IsVerified = user.IsVerified,
+            IsVerificationPending = user.IsVerificationPending,
+            AvatarUrl = avatarUrl
+        };
+
+        return Ok(profile);
+    }
+
+    [HttpPost("avatar")]
+    public async Task<IActionResult> UploadAvatar(IFormFile avatar)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        if (avatar == null || avatar.Length == 0)
+        {
+            return BadRequest(new { Message = "No file uploaded." });
+        }
+
+        try
+        {
+            var key = await _r2Service.UploadFileAsync(avatar, "avatars");
+            user.AvatarS3Key = key;
+            await _userManager.UpdateAsync(user);
+
+            var url = await _r2Service.GetPresignedViewUrlAsync(key, 60 * 24 * 7);
+            return Ok(new { avatarUrl = url });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Помилка завантаження: {ex.Message}");
+        }
+    }
 }
