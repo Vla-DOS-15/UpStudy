@@ -18,48 +18,35 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+// Вкладки для КЛІЄНТА
+export const clientRoutes = [
+  { href: '/dashboard/profile', label: 'Мій профіль', icon: User },
+  { href: '/dashboard/create-order', label: 'Створити замовлення', icon: PlusCircle },
+  { href: '/dashboard/shop', label: 'Купити готову роботу', icon: ShoppingBag },
+  { href: '/dashboard/orders', label: 'Мої замовлення', icon: FileText },
+  { href: '/dashboard/consultants', label: 'Рейтинг авторів', icon: Star },
+  { href: '/dashboard/balance', label: 'Баланс', icon: Wallet },
+  { href: '/dashboard/faq', label: 'Допомога', icon: HelpCircle },
+];
+
+// Вкладки для ВИКОНАВЦЯ
+export const executorRoutes = [
+  { href: '/dashboard/profile', label: 'Мій профіль', icon: User },
+  { href: '/dashboard/orders', label: 'Пошук замовлень', icon: Search },
+  { href: '/dashboard/active-orders', label: 'В роботі', icon: Briefcase },
+  { href: '/dashboard/pending-orders', label: 'В очікуванні', icon: Clock },
+  { href: '/dashboard/archived-orders', label: 'Архів', icon: Archive },
+  { href: '/dashboard/my-shop', label: 'Мої готові роботи', icon: ShoppingBag },
+  { href: '/dashboard/balance', label: 'Баланс', icon: Wallet },
+  { href: '/dashboard/faq', label: 'Допомога', icon: HelpCircle },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const isExecutor = user?.roles?.includes('Executor');
-
-  // Вкладки для КЛІЄНТА
-  const clientRoutes = [
-    { href: '/dashboard/profile', label: 'Мій профіль', icon: User },
-    { href: '/dashboard/create-order', label: 'Створити замовлення', icon: PlusCircle },
-    // Клієнт теж може хотіти купити готову роботу
-    { href: '/dashboard/shop', label: 'Купити готову роботу', icon: ShoppingBag },
-    { href: '/dashboard/orders', label: 'Мої замовлення', icon: FileText },
-    { href: '/dashboard/consultants', label: 'Рейтинг авторів', icon: Star },
-    { href: '/dashboard/balance', label: 'Баланс', icon: Wallet },
-    { href: '/dashboard/faq', label: 'Допомога', icon: HelpCircle },
-  ];
-
-  // Вкладки для ВИКОНАВЦЯ
-  const executorRoutes = [
-    { href: '/dashboard/profile', label: 'Мій профіль', icon: User },
-
-    // 1. Пошук роботи (Біржа)
-    { href: '/dashboard/orders', label: 'Пошук замовлень', icon: Search },
-
-    // 2. Поточні завдання (Active)
-    { href: '/dashboard/active-orders', label: 'В роботі', icon: Briefcase },
-
-    // 3. В очікуванні (Pending)
-    { href: '/dashboard/pending-orders', label: 'В очікуванні', icon: Clock },
-
-    // 4. Архів (Archive)
-    { href: '/dashboard/archived-orders', label: 'Архів', icon: Archive },
-
-    // 5. Продаж готового (Магазин - майбутній функціонал)
-    { href: '/dashboard/my-shop', label: 'Мої готові роботи', icon: ShoppingBag },
-
-    { href: '/dashboard/balance', label: 'Баланс', icon: Wallet },
-    { href: '/dashboard/faq', label: 'Допомога', icon: HelpCircle },
-  ];
-
   const routes = isExecutor ? executorRoutes : clientRoutes;
 
   const toggleSidebar = () => setIsCollapsed(!isCollapsed);
@@ -68,7 +55,7 @@ export function Sidebar() {
     <TooltipProvider>
       <aside
         className={cn(
-          "relative flex flex-col border-r bg-card transition-all duration-300 ease-in-out h-screen sticky top-0",
+          "relative hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out h-screen sticky top-0",
           isCollapsed ? "w-[80px]" : "w-64"
         )}
       >

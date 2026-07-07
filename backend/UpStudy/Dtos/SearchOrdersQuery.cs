@@ -38,6 +38,7 @@ public class OrderPreviewDto
     
     // Індикатор для виконавців, щоб знати статус власної ставки
     public bool HasMyProposal { get; set; }
+    public Guid? MyProposalId { get; set; }
 }
 
 // Обгортка для пагінації

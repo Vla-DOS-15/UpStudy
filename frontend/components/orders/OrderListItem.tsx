@@ -52,6 +52,7 @@ interface OrderPreview {
   viewsCount?: number;
   clientId?: string;
   hasMyProposal?: boolean;
+  myProposalId?: string;
 }
 
 interface OrderListItemProps {
@@ -72,6 +73,7 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
   const [hasChatHistory, setHasChatHistory] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -125,6 +127,11 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
   const formatDateTime = (dateString: string) => {
     if (!dateString) return 'Не вказано';
     return format(new Date(dateString), 'd MMMM yyyy, HH:mm', { locale: uk });
+  };
+
+  const formatDateOnly = (dateString: string) => {
+    if (!dateString) return 'Не вказано';
+    return format(new Date(dateString), 'dd.MM.yyyy', { locale: uk });
   };
 
   // Дії: Редагування/Видалення (тільки для Клієнта)
@@ -195,6 +202,23 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
     } catch (error) {
       // Hide Next.js overlay
       toast.error("Не вдалося відкрити чат");
+    }
+  };
+
+  const handleCancelProposal = async () => {
+    if (!orderPreview.myProposalId) {
+      toast.error("Помилка: не знайдено ID заявки");
+      return;
+    }
+    
+    try {
+      setIsCanceling(true);
+      await orderService.deleteProposal(orderPreview.myProposalId);
+      toast.success("Заявку успішно скасовано");
+      window.location.reload();
+    } catch (error: any) {
+      toast.error(error.response?.data?.Error || "Не вдалося скасувати заявку");
+      setIsCanceling(false);
     }
   };
 
@@ -279,70 +303,7 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
   );
 
   return (
-    <Card className="border shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col h-full bg-card group">
-
-      {/* --- HEADER --- */}
-      <div className="p-6 border-b relative">
-        <div className="flex justify-between items-start gap-4">
-
-          {/* LEFT: Title, Price, Meta */}
-          <div className="space-y-1 flex-1">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-foreground leading-tight pr-4">
-                {orderPreview.title}
-              </h3>
-
-              {/* RIGHT: Status & Menu */}
-              <div className="flex items-center gap-2 shrink-0">
-                {orderPreview.status && (
-                  <Badge variant="outline" className={cn(
-                    "whitespace-nowrap",
-                    orderPreview.status === 'New'
-                      ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400"
-                      : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
-                  )}>
-                    {orderPreview.status === 'New' ? 'Нове' :
-                      orderPreview.status === 'InProgress' ? 'В роботі' :
-                        orderPreview.status === 'Completed' ? 'Виконано' :
-                          orderPreview.status}
-                  </Badge>
-                )}
-
-                {userRole === 'Client' && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted -mr-2">
-                        <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleEdit}>
-                        <Pencil className="w-4 h-4 mr-2" /> Редагувати
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleDeleteClick} className="text-red-600 focus:text-red-600 focus:bg-red-50">
-                        <Trash className="w-4 h-4 mr-2" /> Видалити
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
-            </div>
-
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {formatPrice(orderPreview.price, orderPreview.isNegotiable)}
-            </div>
-
-            {/* Meta Tags */}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <Badge variant="secondary" className="font-normal text-xs">
-                {orderPreview.disciplineName}
-              </Badge>
-              <span className="text-muted-foreground text-xs">•</span>
-              <span className="text-muted-foreground text-xs font-mono">#{orderPreview.orderNumber}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+    <Card className="border shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col h-full bg-card group p-0 gap-0 overflow-hidden">
 
       {/* --- TABS --- */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
@@ -375,39 +336,75 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
 
         {/* ===== ТАБ 1: ЗАВДАННЯ ===== */}
         <TabsContent value="task" className="flex-1 p-0 m-0 overflow-visible animate-in fade-in-50">
-          <div className="p-6 space-y-6">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="border rounded-md p-3 bg-background/50">
-                <div className="text-[10px] uppercase text-muted-foreground font-bold mb-1">Створено</div>
-                <div className="font-medium text-sm flex items-center gap-1.5">
-                  <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
-                  {formatDateTime(orderPreview.createdAt)}
+          {/* --- HEADER --- */}
+          <div className="p-4 border-b relative">
+            <div className="flex justify-between items-start gap-4">
+
+              {/* LEFT: Title, Price, Meta */}
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-base sm:text-lg font-bold text-foreground leading-tight min-w-0 break-words">
+                    {orderPreview.title}
+                  </h3>
+
+                  {/* RIGHT: Price & Menu */}
+                  <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                    <div className="text-[15px] sm:text-base font-bold text-green-700 dark:text-green-400 whitespace-nowrap bg-green-50 dark:bg-green-900/30 px-2.5 py-0.5 rounded-md border border-green-200 dark:border-green-800/50">
+                      {formatPrice(orderPreview.price, orderPreview.isNegotiable)}
+                    </div>
+
+                    {userRole === 'Client' && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted -mr-2">
+                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={handleEdit}>
+                            <Pencil className="w-4 h-4 mr-2" /> Редагувати
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={handleDeleteClick} className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                            <Trash className="w-4 h-4 mr-2" /> Видалити
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="border rounded-md p-3 bg-background/50">
-                <div className="text-[10px] uppercase text-muted-foreground font-bold mb-1">Дедлайн</div>
-                <div className="font-medium text-sm flex items-center gap-1.5 text-red-600 dark:text-red-400">
-                  <Clock className="w-3.5 h-3.5" />
-                  {formatDateTime(orderPreview.deadline)}
-                </div>
-              </div>
-              <div className="border rounded-md p-3 bg-background/50">
-                <div className="text-[10px] uppercase text-muted-foreground font-bold mb-1">Тип</div>
-                <div className="font-medium text-sm">
-                  {orderPreview.workTypeName}
-                </div>
-              </div>
-              <div className="border rounded-md p-3 bg-background/50">
-                <div className="text-[10px] uppercase text-muted-foreground font-bold mb-1">Переглядів</div>
-                <div className="font-medium text-sm flex items-center gap-1.5">
-                  <Eye className="w-3.5 h-3.5 text-muted-foreground" />
-                  {fullOrder?.viewsCount || orderPreview.viewsCount || 0}
+
+                {/* Meta Tags */}
+                <div className="flex flex-col gap-2 pt-1 w-full">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="secondary" className="font-medium text-[10.5px] px-2 py-0.5 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-300 border-transparent transition-colors">
+                      <FileText className="w-3 h-3 mr-1" />
+                      {orderPreview.workTypeName}
+                    </Badge>
+                    <Badge variant="secondary" className="font-medium text-[10.5px] px-2 py-0.5 bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/40 dark:text-red-300 border-transparent transition-colors">
+                      <Clock className="w-3 h-3 mr-1" />
+                      {formatDateTime(orderPreview.deadline)}
+                    </Badge>
+                    <Badge variant="outline" className="font-medium text-[10.5px] px-2 py-0.5 text-muted-foreground border-muted-foreground/30 hover:bg-muted/50 transition-colors">
+                      {orderPreview.disciplineName}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
+                      <span className="font-mono">#{orderPreview.orderNumber}</span>
+                      <span>•</span>
+                      <span>від {formatDateOnly(orderPreview.createdAt)}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-muted-foreground text-[11px]">
+                      <Eye className="w-3.5 h-3.5" />
+                      {fullOrder?.viewsCount || orderPreview.viewsCount || 0}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <Separator />
-
+          <div className="p-4 space-y-4">
             <div>
               <h4 className="text-base font-semibold mb-2 text-foreground">Опис завдання:</h4>
               <div className="text-muted-foreground leading-relaxed whitespace-pre-wrap text-sm">
@@ -509,12 +506,25 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
                 {orderPreview.hasMyProposal ? (
                   <Button
                     variant="secondary"
-                    className="flex-1 h-11 text-base font-semibold shadow-sm opacity-80"
+                    className="flex-1 h-11 text-base font-semibold shadow-sm group hover:bg-destructive hover:text-destructive-foreground transition-colors"
                     size="lg"
-                    disabled
+                    disabled={isCanceling}
+                    onClick={handleCancelProposal}
                   >
-                    <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
-                    Ви вже подали заявку
+                    {isCanceling ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <>
+                        <span className="group-hover:hidden flex items-center justify-center">
+                          <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
+                          Ви вже подали заявку
+                        </span>
+                        <span className="hidden group-hover:flex items-center justify-center">
+                          <Trash className="w-4 h-4 mr-2" />
+                          Скасувати заявку
+                        </span>
+                      </>
+                    )}
                   </Button>
                 ) : (
                   <Button

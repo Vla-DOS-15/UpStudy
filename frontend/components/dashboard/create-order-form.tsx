@@ -339,7 +339,7 @@ export function CreateOrderForm({ disciplines, workTypes, editId }: CreateOrderF
           )}
         />
 
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <FormField
             control={form.control}
             name="price"
@@ -365,15 +365,18 @@ export function CreateOrderForm({ disciplines, workTypes, editId }: CreateOrderF
             control={form.control}
             name="isNegotiable"
             render={({ field }) => (
-              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm mb-2 h-10 flex items-center bg-muted/20">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel className="cursor-pointer">Ціна договірна</FormLabel>
+              <FormItem className="flex-none sm:w-[220px]">
+                <FormLabel className="invisible">Договірна</FormLabel>
+                <div className="flex flex-row items-center space-x-3 rounded-md border px-4 shadow-sm h-9 bg-muted/20">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel className="cursor-pointer !mt-0">Ціна договірна</FormLabel>
+                  </div>
                 </div>
               </FormItem>
             )}

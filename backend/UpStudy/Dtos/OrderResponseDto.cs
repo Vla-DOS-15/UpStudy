@@ -24,6 +24,7 @@ public class OrderResponseDto
     
     // Індикатор для виконавця
     public bool HasMyProposal { get; set; }
+    public Guid? MyProposalId { get; set; }
 
     public bool IsCommissionPaid { get; set; }
     public decimal PlatformCommission { get; set; }

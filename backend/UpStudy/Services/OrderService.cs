@@ -407,7 +407,8 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
                 ClientId = o.ClientId,
                 ExecutorId = o.ExecutorId,
-                HasMyProposal = false // Because they are filtered out
+                HasMyProposal = false, // Because they are filtered out
+                MyProposalId = null
             })
             .ToListAsync();
 
@@ -515,35 +516,38 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             });
         }
 
-        // Мапимо відповідь
-        return new OrderResponseDto
-        {
-            Id = order.Id,
-            OrderNumber = order.OrderNumber,
-            Title = order.Title,
-            Description = order.Description,
-            Price = order.Price,
-            IsNegotiable = order.IsNegotiable,
-            Deadline = order.Deadline,
-            CreatedAt = order.CreatedAt,
-            Status = order.Status.ToString(),
-        
-            DisciplineId = order.DisciplineId,
-            DisciplineName = order.Discipline?.Name ?? "Не вказано",
-            WorkTypeId = order.WorkTypeId,
-            WorkTypeName = order.WorkType?.Name ?? "Не вказано",
-            ClientName = order.Client != null ? $"{order.Client.FirstName} {order.Client.LastName}" : "Невідомий",
-            ClientId = order.ClientId,
-            ExecutorId = order.ExecutorId,
+            var myProposal = string.IsNullOrEmpty(currentUserId) ? null : order.Proposals.FirstOrDefault(p => p.ExecutorId == currentUserId);
 
-            IsCommissionPaid = order.IsCommissionPaid,
-            PlatformCommission = order.PlatformCommission,
-            CommissionPaymentStatus = order.CommissionPaymentStatus,
-            CommissionRejectReason = order.CommissionRejectReason,
+            // Мапимо відповідь
+            return new OrderResponseDto
+            {
+                Id = order.Id,
+                OrderNumber = order.OrderNumber,
+                Title = order.Title,
+                Description = order.Description,
+                Price = order.Price,
+                IsNegotiable = order.IsNegotiable,
+                Deadline = order.Deadline,
+                CreatedAt = order.CreatedAt,
+                Status = order.Status.ToString(),
+            
+                DisciplineId = order.DisciplineId,
+                DisciplineName = order.Discipline?.Name ?? "Не вказано",
+                WorkTypeId = order.WorkTypeId,
+                WorkTypeName = order.WorkType?.Name ?? "Не вказано",
+                ClientName = order.Client != null ? $"{order.Client.FirstName} {order.Client.LastName}" : "Невідомий",
+                ClientId = order.ClientId,
+                ExecutorId = order.ExecutorId,
 
-            Attachments = attachmentDtos,
-            HasMyProposal = !string.IsNullOrEmpty(currentUserId) && order.Proposals.Any(p => p.ExecutorId == currentUserId)
-        };
+                IsCommissionPaid = order.IsCommissionPaid,
+                PlatformCommission = order.PlatformCommission,
+                CommissionPaymentStatus = order.CommissionPaymentStatus,
+                CommissionRejectReason = order.CommissionRejectReason,
+
+                Attachments = attachmentDtos,
+                HasMyProposal = myProposal != null,
+                MyProposalId = myProposal?.Id
+            };
     }
     
     public async Task<List<OrderPreviewDto>> GetPendingOrdersAsync(string userId)
@@ -573,7 +577,8 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
                 ClientId = o.ClientId,
                 ExecutorId = o.ExecutorId,
-                HasMyProposal = true
+                HasMyProposal = true,
+                MyProposalId = o.Proposals.Where(p => p.ExecutorId == userId).Select(p => (Guid?)p.Id).FirstOrDefault()
             })
             .ToListAsync();
     }
@@ -605,7 +610,8 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
                 ClientId = o.ClientId,
                 ExecutorId = o.ExecutorId,
-                HasMyProposal = true
+                HasMyProposal = true,
+                MyProposalId = o.Proposals.Where(p => p.ExecutorId == userId).Select(p => (Guid?)p.Id).FirstOrDefault()
             })
             .ToListAsync();
     }
@@ -637,7 +643,10 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 WorkTypeName = o.WorkType.Name,
                 ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
                 ClientId = o.ClientId,
-                ExecutorId = o.ExecutorId
+                ExecutorId = o.ExecutorId,
+                HasMyProposal = o.ExecutorId == userId,
+                MyProposalId = null // Ми можемо не мати доступу до Proposals тут, але для UserOrders це зазвичай не потрібно для видалення
+
             })
             .ToListAsync();
     }

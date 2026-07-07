@@ -63,6 +63,11 @@ export const orderService = {
     return response.data;
   },
 
+  async deleteProposal(id: string) {
+    const response = await api.delete(`/Proposals/${id}`);
+    return response.data;
+  },
+
   // ... інші методи без змін
   async createProposal(data: { orderId: string; price: number; comment?: string }) {
     const response = await api.post('/Proposals', data);
