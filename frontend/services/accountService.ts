@@ -27,5 +27,10 @@ export const accountService = {
       },
     });
     return response.data;
+  },
+
+  async updateProfile(data: any) {
+    const response = await api.put('/Account/profile', data);
+    return response.data;
   }
 };

@@ -11,4 +11,5 @@ public class UserProfileDto
     public bool IsVerified { get; set; }
     public bool IsVerificationPending { get; set; }
     public string? AvatarUrl { get; set; }
+    public List<int> PreferredDisciplineIds { get; set; } = new();
 }

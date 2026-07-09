@@ -7,20 +7,66 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { Camera } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Camera, Loader2 } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
 import { accountService } from '@/services/accountService';
+import { dictionaryService } from '@/services/dictionaryService';
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [preferredDisciplineIds, setPreferredDisciplineIds] = useState<number[]>([]);
+  
+  const [directions, setDirections] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      setFirstName(user.firstName);
+      setLastName(user.lastName);
+      if (user.preferredDisciplineIds) {
+        setPreferredDisciplineIds(user.preferredDisciplineIds);
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const fetchDirections = async () => {
+      if (user?.roles?.includes('Executor')) {
+        try {
+          const res = await dictionaryService.getDirections();
+          setDirections(res);
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    };
+    fetchDirections();
+  }, [user]);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Тут буде запит PUT /api/Account/profile
-    toast.success('Профіль оновлено');
+    try {
+      setIsSaving(true);
+      await accountService.updateProfile({
+        firstName,
+        lastName,
+        preferredDisciplineIds
+      });
+      updateUser({ firstName, lastName, preferredDisciplineIds });
+      toast.success('Профіль оновлено');
+    } catch (error) {
+      toast.error('Помилка при оновленні профілю');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,7 +85,15 @@ export default function ProfilePage() {
     }
   };
 
+  const toggleDiscipline = (id: number) => {
+    setPreferredDisciplineIds(prev => 
+      prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]
+    );
+  };
+
   if (!user) return null;
+
+  const isExecutor = user.roles?.includes('Executor');
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -52,8 +106,7 @@ export default function ProfilePage() {
       <Separator />
 
       <div className="grid gap-6 md:grid-cols-[250px_1fr]">
-        {/* Аватар та статус */}
-        <Card>
+        <Card className="h-fit">
           <CardContent className="flex flex-col items-center gap-4 pt-6">
             <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <Avatar className={`h-24 w-24 transition-opacity ${isUploading ? 'opacity-50' : 'group-hover:opacity-80'}`}>
@@ -63,7 +116,7 @@ export default function ProfilePage() {
                 </AvatarFallback>
               </Avatar>
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-full">
-                <Camera className="w-8 h-8 text-white" />
+                {isUploading ? <Loader2 className="w-8 h-8 text-white animate-spin" /> : <Camera className="w-8 h-8 text-white" />}
               </div>
               <input
                 type="file"
@@ -76,29 +129,28 @@ export default function ProfilePage() {
             <div className="text-center">
               <h3 className="font-semibold text-lg">{user.firstName} {user.lastName}</h3>
               <p className="text-sm text-muted-foreground">{user.email}</p>
-              <div className="mt-2 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary text-primary-foreground hover:bg-primary/80">
+              <div className="mt-2 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors bg-primary text-primary-foreground">
                 {user.roles?.[0] || 'User'}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Форма редагування */}
         <Card>
           <CardHeader>
             <CardTitle>Основна інформація</CardTitle>
-            <CardDescription>Змініть ваше ім'я або пароль тут.</CardDescription>
+            <CardDescription>Оновіть свої особисті дані та налаштування роботи.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSave} className="space-y-4">
+            <form onSubmit={handleSave} className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">Ім'я</Label>
-                  <Input id="firstName" defaultValue={user.firstName} />
+                  <Input id="firstName" value={firstName} onChange={e => setFirstName(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Прізвище</Label>
-                  <Input id="lastName" defaultValue={user.lastName} />
+                  <Input id="lastName" value={lastName} onChange={e => setLastName(e.target.value)} required />
                 </div>
               </div>
               
@@ -107,10 +159,58 @@ export default function ProfilePage() {
                 <Input id="email" defaultValue={user.email} disabled className="bg-muted" />
               </div>
 
-              {/* Для виконавців можна додати поле "Про мене" */}
+              {isExecutor && directions.length > 0 && (
+                <div className="space-y-3 pt-4">
+                  <Label className="text-base font-semibold">Бажані дисципліни</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Оберіть предмети, з яких ви хочете отримувати замовлення.
+                  </p>
+                  <Accordion type="multiple" className="w-full border rounded-md px-4">
+                    {directions.map((dir, idx) => {
+                      const selectedCount = dir.disciplines.filter((d: any) => preferredDisciplineIds.includes(d.id)).length;
+                      return (
+                        <AccordionItem value={`item-${dir.id}`} key={dir.id} className={idx === directions.length - 1 ? "border-b-0" : ""}>
+                          <AccordionTrigger className="hover:no-underline">
+                            <span className="flex items-center gap-2">
+                              {dir.name}
+                              {selectedCount > 0 && (
+                                <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">
+                                  {selectedCount} обрано
+                                </span>
+                              )}
+                            </span>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 pb-4">
+                              {dir.disciplines.map((disc: any) => (
+                                <label
+                                  key={disc.id}
+                                  className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                                >
+                                  <Checkbox
+                                    checked={preferredDisciplineIds.includes(disc.id)}
+                                    onCheckedChange={() => toggleDiscipline(disc.id)}
+                                    className="mt-1"
+                                  />
+                                  <span className="text-sm leading-none flex-1 peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    {disc.name}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      );
+                    })}
+                  </Accordion>
+                </div>
+              )}
               
               <div className="flex justify-end pt-4">
-                <Button type="submit">Зберегти зміни</Button>
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Зберегти зміни
+                </Button>
               </div>
             </form>
           </CardContent>

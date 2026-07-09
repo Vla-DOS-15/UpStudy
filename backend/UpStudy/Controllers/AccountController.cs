@@ -5,6 +5,7 @@ using System.Security.Claims;
 using UpStudy.Dtos;
 using UpStudy.Interfaces;
 using UpStudy.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace UpStudy.Controllers;
 
@@ -16,12 +17,14 @@ public class AccountController : ControllerBase
     private readonly IAuthService _authService;
     private readonly UserManager<AppUser> _userManager;
     private readonly IR2Service _r2Service;
+    private readonly ApplicationDbContext _context;
 
-    public AccountController(IAuthService authService, UserManager<AppUser> userManager,  IR2Service r2Service)
+    public AccountController(IAuthService authService, UserManager<AppUser> userManager,  IR2Service r2Service, ApplicationDbContext context)
     {
         _authService = authService;
         _userManager = userManager;
         _r2Service =  r2Service;
+        _context = context;
     }
 
     [HttpPost("change-password")]
@@ -88,7 +91,10 @@ public class AccountController : ControllerBase
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId == null) return Unauthorized();
 
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await _userManager.Users
+            .Include(u => u.PreferredDisciplines)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+            
         if (user == null) return NotFound();
 
         var roles = await _userManager.GetRolesAsync(user);
@@ -109,7 +115,8 @@ public class AccountController : ControllerBase
             Roles = roles.ToList(),
             IsVerified = user.IsVerified,
             IsVerificationPending = user.IsVerificationPending,
-            AvatarUrl = avatarUrl
+            AvatarUrl = avatarUrl,
+            PreferredDisciplineIds = user.PreferredDisciplines.Select(d => d.Id).ToList()
         };
 
         return Ok(profile);
@@ -142,5 +149,34 @@ public class AccountController : ControllerBase
         {
             return StatusCode(500, $"Помилка завантаження: {ex.Message}");
         }
+    }
+
+    [HttpPut("profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto model)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.Users
+            .Include(u => u.PreferredDisciplines)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+            
+        if (user == null) return NotFound();
+
+        user.FirstName = model.FirstName;
+        user.LastName = model.LastName;
+        user.AboutMe = model.AboutMe;
+
+        // Оновлюємо дисципліни
+        var selectedDisciplines = await _context.Disciplines
+            .Where(d => model.PreferredDisciplineIds.Contains(d.Id))
+            .ToListAsync();
+
+        user.PreferredDisciplines.Clear();
+        user.PreferredDisciplines.AddRange(selectedDisciplines);
+
+        await _userManager.UpdateAsync(user);
+
+        return Ok(new { Message = "Профіль успішно оновлено." });
     }
 }

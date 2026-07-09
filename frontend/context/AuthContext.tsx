@@ -55,6 +55,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 firstName: me.firstName || currentUser.firstName,
                 lastName: me.lastName || currentUser.lastName,
                 avatarUrl: me.avatarUrl,
+                preferredDisciplineIds: me.preferredDisciplineIds || [],
               };
               setUser(currentUser);
             }
@@ -79,18 +80,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         Cookies.set('refreshToken', res.refreshToken);
         
         const decoded: any = jwtDecode(res.accessToken);
-        setUser({
-            id: decoded.nameid,
-            email: decoded.email,
-            firstName: decoded.given_name || 'User',
-            lastName: '',
-            userName: decoded.family_name || '',
-            roles: decoded.role || [],
-            isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
-            isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
-        });
-        
-        router.push('/dashboard');
+            const userRoles = decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [];
+            
+            setUser({
+                id: decoded.nameid,
+                email: decoded.email,
+                firstName: decoded.given_name || 'User',
+                lastName: '',
+                userName: decoded.family_name || '',
+                roles: userRoles,
+                isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
+                isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
+            });
+            
+            if (userRoles.includes('Admin')) {
+                router.push('/admin');
+            } else {
+                router.push('/dashboard');
+            }
       } else {
         throw new Error(res.message || 'Помилка входу');
       }

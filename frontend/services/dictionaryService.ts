@@ -14,5 +14,10 @@ export const dictionaryService = {
   async getWorkTypes(): Promise<DictionaryItem[]> {
     const response = await api.get('/Dictionary/work-types');
     return response.data;
+  },
+
+  async getDirections() {
+    const res = await api.get('/Dictionary/directions');
+    return res.data;
   }
 };

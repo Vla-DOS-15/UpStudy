@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using UpStudy.Dtos.Admin;
 using UpStudy.Interfaces;
@@ -17,6 +17,26 @@ public class AdminService : IAdminService
         _userManager = userManager;
         _context = context;
         _r2Service = r2Service;
+    }
+
+    public async Task<DashboardStatsDto> GetDashboardStatsAsync()
+    {
+        var clientRoleId = await _context.Roles.Where(r => r.Name == "Client").Select(r => r.Id).FirstOrDefaultAsync();
+        var execRoleId = await _context.Roles.Where(r => r.Name == "Executor").Select(r => r.Id).FirstOrDefaultAsync();
+
+        var clientsCount = await _context.UserRoles.CountAsync(ur => ur.RoleId == clientRoleId);
+        var executorsCount = await _context.UserRoles.CountAsync(ur => ur.RoleId == execRoleId);
+        var pendingVerifications = await _context.Users.CountAsync(u => u.IsVerificationPending);
+        var ordersCount = await _context.Orders.CountAsync();
+        var transactionsCount = await _context.DirectPaymentRequests.CountAsync() + await _context.Orders.CountAsync(o => o.CommissionPaymentStatus == CommissionPaymentStatus.Approved || o.IsCommissionPaid);
+
+        return new DashboardStatsDto
+        {
+            ClientsCount = clientsCount,
+            ExecutorsCount = executorsCount,
+            OrdersCount = ordersCount,
+            TransactionsCount = transactionsCount
+        };
     }
 
     // Отримати список заявок на верифікацію

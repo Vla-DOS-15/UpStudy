@@ -24,6 +24,11 @@ export const adminService = {
     return data;
   },
   
+  getDashboardStats: async () => {
+    const { data } = await api.get('/Admin/stats');
+    return data;
+  },
+  
     toggleBlockUser: async (userId: string, isBlocked: boolean) => {
         return await api.post(`/Admin/users/${userId}/block`, { isBlocked });
     }

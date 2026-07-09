@@ -11,6 +11,7 @@ export interface User {
   isVerified: boolean;
   isVerificationPending: boolean;
   avatarUrl?: string;
+  preferredDisciplineIds?: number[];
 }
 
 export interface AuthResponse {

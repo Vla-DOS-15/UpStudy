@@ -40,4 +40,7 @@ public class AppUser : IdentityUser
     
     // Відгуки, які отримав цей користувач
     public List<Review> Reviews { get; set; } = new();
+    
+    // Предмети, які виконавець обрав для роботи
+    public List<Discipline> PreferredDisciplines { get; set; } = new();
 }

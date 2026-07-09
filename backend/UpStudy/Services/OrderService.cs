@@ -121,8 +121,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
     var order = await _context.Orders
         .Include(o => o.Proposals)
             .ThenInclude(p => p.Executor)
-        // Якщо рейтингу немає в таблиці юзера, можливо, треба підтягнути відгуки:
-        // .Include(o => o.Proposals).ThenInclude(p => p.Executor).ThenInclude(e => e.ReceivedReviews) 
+                .ThenInclude(e => e.PreferredDisciplines)
         .FirstOrDefaultAsync(o => o.Id == orderId);
 
     if (order == null)
@@ -135,16 +134,8 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
     if (!isClient)
     {
         var myProposals = proposalsList.Where(p => p.ExecutorId == userId).ToList();
-        if (!myProposals.Any())
-        {
-            throw new UnauthorizedAccessException("Тільки автор замовлення або учасник може бачити ставки.");
-        }
         proposalsList = myProposals;
     }
-    var specializations = new List<string>();
-    specializations.Add("Програмування");
-    specializations.Add("Електромеханіка");
-    specializations.Add("Фізика");
 
     // 3. Мапимо базові дані (без асинхронних операцій S3)
     var proposalsDto = proposalsList.Select(p => new OrderProposalDto
@@ -159,15 +150,13 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             : "Невідомий",
         
         // --- Нові поля ---
-        ExecutorRating = 4.5, // Припускаємо, що в AppUser є поле Rating
-        ExecutorIsVerified = p.Executor?.IsVerified ?? false, // Припускаємо, що в AppUser є IsVerified
+        ExecutorRating = p.Executor?.Rating ?? 0, 
+        ExecutorIsVerified = p.Executor?.IsVerified ?? false, 
         
-        // Якщо є поле CompletedOrdersCount в юзері - беремо його, 
-        // або ставимо 0, якщо ще не реалізували лічильник
-        ExecutorCompletedProjects = 2, 
+        ExecutorCompletedProjects = p.Executor?.CompletedOrdersCount ?? 0, 
 
         // Мапимо спеціалізації (якщо це окрема сутність)
-        ExecutorSpecializations = specializations,
+        ExecutorSpecializations = p.Executor?.PreferredDisciplines?.Select(d => d.Name).ToList() ?? new List<string>(),
 
         // Тимчасово записуємо ключ (шлях) до файлу, URL згенеруємо нижче
         ExecutorAvatar = p.Executor?.AvatarS3Key 
