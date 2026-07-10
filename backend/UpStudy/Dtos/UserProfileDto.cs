@@ -11,5 +11,7 @@ public class UserProfileDto
     public bool IsVerified { get; set; }
     public bool IsVerificationPending { get; set; }
     public string? AvatarUrl { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Telegram { get; set; }
     public List<int> PreferredDisciplineIds { get; set; } = new();
 }

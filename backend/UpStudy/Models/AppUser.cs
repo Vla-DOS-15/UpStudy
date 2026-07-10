@@ -19,6 +19,8 @@ public class AppUser : IdentityUser
     
     public string? AvatarS3Key { get; set; }
     
+    public string? Telegram { get; set; }
+    
     public bool IsVerified { get; set; } = false;
     public bool IsVerificationPending { get; set; } = false;    
     public string? VerificationRejectReason { get; set; }

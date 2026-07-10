@@ -76,8 +76,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const res = await authService.login(data);
       if (res.isSuccess) {
-        Cookies.set('accessToken', res.accessToken);
-        Cookies.set('refreshToken', res.refreshToken);
+        Cookies.set('accessToken', res.accessToken, { expires: 7 });
+        Cookies.set('refreshToken', res.refreshToken, { expires: 7 });
         
         const decoded: any = jwtDecode(res.accessToken);
             const userRoles = decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [];

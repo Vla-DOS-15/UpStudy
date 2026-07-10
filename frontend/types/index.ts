@@ -12,6 +12,8 @@ export interface User {
   isVerificationPending: boolean;
   avatarUrl?: string;
   preferredDisciplineIds?: number[];
+  phoneNumber?: string;
+  telegram?: string;
 }
 
 export interface AuthResponse {
@@ -35,6 +37,8 @@ export interface RegisterDto {
   password: string;
   firstName?: string;
   lastName?: string;
+  phoneNumber?: string;
+  telegram?: string;
 }
 
 export interface RefreshTokenDto {

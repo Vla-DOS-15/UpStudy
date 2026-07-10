@@ -23,14 +23,18 @@ export default function ProfilePage() {
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [telegram, setTelegram] = useState('');
   const [preferredDisciplineIds, setPreferredDisciplineIds] = useState<number[]>([]);
   
   const [directions, setDirections] = useState<any[]>([]);
 
   useEffect(() => {
     if (user) {
-      setFirstName(user.firstName);
-      setLastName(user.lastName);
+      setFirstName(user.firstName || '');
+      setLastName(user.lastName || '');
+      setPhoneNumber(user.phoneNumber || '');
+      setTelegram(user.telegram || '');
       if (user.preferredDisciplineIds) {
         setPreferredDisciplineIds(user.preferredDisciplineIds);
       }
@@ -58,9 +62,11 @@ export default function ProfilePage() {
       await accountService.updateProfile({
         firstName,
         lastName,
+        phoneNumber,
+        telegram,
         preferredDisciplineIds
       });
-      updateUser({ firstName, lastName, preferredDisciplineIds });
+      updateUser({ firstName, lastName, phoneNumber, telegram, preferredDisciplineIds });
       toast.success('Профіль оновлено');
     } catch (error) {
       toast.error('Помилка при оновленні профілю');
@@ -154,10 +160,25 @@ export default function ProfilePage() {
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" defaultValue={user.email} disabled className="bg-muted" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" defaultValue={user.email} disabled className="bg-muted" />
+                </div>
+                {isExecutor && (
+                  <div className="space-y-2">
+                    <Label htmlFor="phoneNumber">Номер телефону</Label>
+                    <Input id="phoneNumber" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} required />
+                  </div>
+                )}
               </div>
+
+              {isExecutor && (
+                <div className="space-y-2">
+                  <Label htmlFor="telegram">Telegram (опціонально)</Label>
+                  <Input id="telegram" placeholder="@vlad_dev" value={telegram} onChange={e => setTelegram(e.target.value)} />
+                </div>
+              )}
 
               {isExecutor && directions.length > 0 && (
                 <div className="space-y-3 pt-4">

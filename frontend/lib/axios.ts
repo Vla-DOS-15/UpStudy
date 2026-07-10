@@ -89,8 +89,8 @@ api.interceptors.response.use(
           const { accessToken, refreshToken } = response.data;
 
           // 1. Оновлюємо куки
-          Cookies.set('accessToken', accessToken);
-          Cookies.set('refreshToken', refreshToken);
+          Cookies.set('accessToken', accessToken, { expires: 7 });
+          Cookies.set('refreshToken', refreshToken, { expires: 7 });
 
           // 2. Оновлюємо заголовок в оригінальному запиті
           api.defaults.headers.common['Authorization'] = 'Bearer ' + accessToken; // Update default header just in case

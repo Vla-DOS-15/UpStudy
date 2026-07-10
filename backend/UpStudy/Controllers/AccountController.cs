@@ -116,6 +116,8 @@ public class AccountController : ControllerBase
             IsVerified = user.IsVerified,
             IsVerificationPending = user.IsVerificationPending,
             AvatarUrl = avatarUrl,
+            PhoneNumber = user.PhoneNumber,
+            Telegram = user.Telegram,
             PreferredDisciplineIds = user.PreferredDisciplines.Select(d => d.Id).ToList()
         };
 
@@ -166,6 +168,14 @@ public class AccountController : ControllerBase
         user.FirstName = model.FirstName;
         user.LastName = model.LastName;
         user.AboutMe = model.AboutMe;
+        user.PhoneNumber = model.PhoneNumber;
+
+        string? formattedTelegram = model.Telegram;
+        if (!string.IsNullOrWhiteSpace(formattedTelegram) && !formattedTelegram.StartsWith("@"))
+        {
+            formattedTelegram = "@" + formattedTelegram;
+        }
+        user.Telegram = formattedTelegram;
 
         // Оновлюємо дисципліни
         var selectedDisciplines = await _context.Disciplines
