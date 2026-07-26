@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import OrderListItem from '@/components/orders/OrderListItem';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { dictionaryService, DictionaryItem } from '@/services/dictionaryService';
 
 export default function OrdersPageClient() {
@@ -41,6 +42,7 @@ export default function OrdersPageClient() {
     const [maxPrice, setMaxPrice] = useState('');
 
     const userRole = user?.roles?.includes('Executor') ? 'Executor' : 'Client';
+    const [activeTab, setActiveTab] = useState('all');
 
     useEffect(() => {
         // Debounce fetch for filters
@@ -343,57 +345,83 @@ export default function OrdersPageClient() {
                         <div key={i} className="h-64 rounded-xl bg-muted/20 animate-pulse" />
                     ))}
                 </div>
-            ) : orders.length === 0 ? (
-                <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed min-h-[300px]">
-                    <div className="bg-muted/50 p-4 rounded-full mb-4">
-                        <Search className="h-10 w-10 text-muted-foreground" />
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">
-                        {userRole === 'Client' ? 'У вас ще немає замовлень' : 'Замовлень не знайдено'}
-                    </h3>
-                    <p className="text-muted-foreground max-w-sm mx-auto mb-6">
-                        {userRole === 'Client'
-                            ? "Створіть своє перше замовлення, щоб знайти виконавців."
-                            : "Спробуйте змінити параметри пошуку або завітайте пізніше."}
-                    </p>
-                    {userRole === 'Client' && (
-                        <Button asChild variant="outline">
-                            <Link href="/dashboard/create-order">Створити перше замовлення</Link>
-                        </Button>
-                    )}
-                </Card>
             ) : (
-                <div className="flex flex-col gap-8">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-6 items-start">
-                        {orders.map((order) => (
-                            <OrderListItem
-                                key={order.id}
-                                orderPreview={order}
-                                userRole={userRole}
-                            />
-                        ))}
-                    </div>
-
-                    {hasMore && (
-                        <div className="flex justify-center pb-8">
-                            <Button
-                                variant="outline"
-                                size="lg"
-                                onClick={handleLoadMore}
-                                disabled={isLoadingMore}
-                                className="min-w-[200px]"
-                            >
-                                {isLoadingMore ? (
-                                    <>
-                                        <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
-                                        Завантаження...
-                                    </>
-                                ) : (
-                                    'Завантажити ще'
-                                )}
-                            </Button>
-                        </div>
+                <div className="flex flex-col gap-6">
+                    {userRole === 'Client' && (
+                        <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full">
+                            <TabsList className="w-full sm:w-auto overflow-x-auto justify-start">
+                                <TabsTrigger value="all">Всі замовлення</TabsTrigger>
+                                <TabsTrigger value="New">Нові</TabsTrigger>
+                                <TabsTrigger value="InProgress">В процесі</TabsTrigger>
+                                <TabsTrigger value="Review">На перевірці</TabsTrigger>
+                                <TabsTrigger value="Completed">Завершені</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
                     )}
+
+                    {(() => {
+                        const filteredOrders = userRole === 'Client'
+                            ? orders.filter(o => activeTab === 'all' || o.status === activeTab)
+                            : orders;
+
+                        if (filteredOrders.length === 0) {
+                            return (
+                                <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed min-h-[300px]">
+                                    <div className="bg-muted/50 p-4 rounded-full mb-4">
+                                        <Search className="h-10 w-10 text-muted-foreground" />
+                                    </div>
+                                    <h3 className="text-xl font-semibold mb-2">
+                                        {userRole === 'Client' ? 'У вас ще немає замовлень' : 'Замовлень не знайдено'}
+                                    </h3>
+                                    <p className="text-muted-foreground max-w-sm mx-auto mb-6">
+                                        {userRole === 'Client'
+                                            ? "Створіть своє перше замовлення, щоб знайти виконавців."
+                                            : "Спробуйте змінити параметри пошуку або завітайте пізніше."}
+                                    </p>
+                                    {userRole === 'Client' && (
+                                        <Button asChild variant="outline">
+                                            <Link href="/dashboard/create-order">Створити перше замовлення</Link>
+                                        </Button>
+                                    )}
+                                </Card>
+                            );
+                        }
+
+                        return (
+                            <div className="flex flex-col gap-8">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-6 items-start">
+                                    {filteredOrders.map((order) => (
+                                        <OrderListItem
+                                            key={order.id}
+                                            orderPreview={order}
+                                            userRole={userRole}
+                                        />
+                                    ))}
+                                </div>
+
+                                {hasMore && (
+                                    <div className="flex justify-center pb-8">
+                                        <Button
+                                            variant="outline"
+                                            size="lg"
+                                            onClick={handleLoadMore}
+                                            disabled={isLoadingMore}
+                                            className="min-w-[200px]"
+                                        >
+                                            {isLoadingMore ? (
+                                                <>
+                                                    <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
+                                                    Завантаження...
+                                                </>
+                                            ) : (
+                                                'Завантажити ще'
+                                            )}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
             )}
         </div>

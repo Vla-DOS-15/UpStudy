@@ -9,4 +9,6 @@ public interface IAuthService
     Task<AuthResponseDto> GoogleLoginAsync(string googleIdToken);
     Task<bool> ChangePasswordAsync(string userId, string currentPassword, string newPassword);
     Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenDto model);
+    Task<AuthResponseDto> VerifyEmailAsync(VerifyEmailDto model);
+    Task<AuthResponseDto> ResendVerificationAsync(ResendVerificationDto model);
 }

@@ -19,6 +19,11 @@ public class AppUser : IdentityUser
     
     public string? AvatarS3Key { get; set; }
     
+    public string? Telegram { get; set; }
+    
+    public string? EmailVerificationCode { get; set; }
+    public DateTime? EmailVerificationCodeExpiry { get; set; }
+
     public bool IsVerified { get; set; } = false;
     public bool IsVerificationPending { get; set; } = false;    
     public string? VerificationRejectReason { get; set; }
@@ -40,4 +45,7 @@ public class AppUser : IdentityUser
     
     // Відгуки, які отримав цей користувач
     public List<Review> Reviews { get; set; } = new();
+    
+    // Предмети, які виконавець обрав для роботи
+    public List<Discipline> PreferredDisciplines { get; set; } = new();
 }

@@ -3,6 +3,7 @@ namespace UpStudy.Dtos.Chat;
 public class ChatMessageDto
 {
     public Guid Id { get; set; }
+    public Guid ChatId { get; set; }
     public string Text { get; set; } = string.Empty;
     public DateTime SentAt { get; set; }
     public bool IsSystem { get; set; }

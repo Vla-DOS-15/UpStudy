@@ -80,6 +80,8 @@ builder.Services.AddAuthorization(options =>
 
 // Реєстрація сервісів
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IConsultantService, ConsultantService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<IChatService, ChatService>();
@@ -112,6 +114,7 @@ builder.Services.AddCors(options =>
         policy =>
         {
             policy.WithOrigins("http://localhost:3000") // Адреса твого Next.js
+                .SetIsOriginAllowed(origin => true) // Тимчасово дозволяє будь-які адреси (для ngrok)
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials(); // Якщо використовуєш Cookies

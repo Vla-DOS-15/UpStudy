@@ -20,6 +20,14 @@ public class AdminController : ControllerBase
         _orderService = orderService;
     }
 
+    [HttpGet("stats")]
+    [Authorize(Roles = "Admin,VerificationManager,UserManager")]
+    public async Task<IActionResult> GetStats()
+    {
+        var stats = await _adminService.GetDashboardStatsAsync();
+        return Ok(stats);
+    }
+
     [HttpGet("verifications")]
     [Authorize(Policy = "CanVerifyUsers")] // Використовуємо політику!
     public async Task<IActionResult> GetPendingVerifications()

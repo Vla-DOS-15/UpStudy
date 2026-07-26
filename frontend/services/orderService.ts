@@ -63,6 +63,16 @@ export const orderService = {
     return response.data;
   },
 
+  async completeOrder(id: string) {
+    const response = await api.post(`/Orders/${id}/complete`);
+    return response.data;
+  },
+
+  async leaveReview(id: string, data: { rating: number; text: string }) {
+    const response = await api.post(`/Orders/${id}/review`, data);
+    return response.data;
+  },
+
   async deleteProposal(id: string) {
     const response = await api.delete(`/Proposals/${id}`);
     return response.data;

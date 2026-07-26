@@ -5,6 +5,7 @@ using System.Security.Claims;
 using UpStudy.Dtos;
 using UpStudy.Interfaces;
 using UpStudy.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace UpStudy.Controllers;
 
@@ -16,12 +17,14 @@ public class AccountController : ControllerBase
     private readonly IAuthService _authService;
     private readonly UserManager<AppUser> _userManager;
     private readonly IR2Service _r2Service;
+    private readonly ApplicationDbContext _context;
 
-    public AccountController(IAuthService authService, UserManager<AppUser> userManager,  IR2Service r2Service)
+    public AccountController(IAuthService authService, UserManager<AppUser> userManager,  IR2Service r2Service, ApplicationDbContext context)
     {
         _authService = authService;
         _userManager = userManager;
         _r2Service =  r2Service;
+        _context = context;
     }
 
     [HttpPost("change-password")]
@@ -80,5 +83,181 @@ public class AccountController : ControllerBase
         {
             return StatusCode(500, $"Помилка завантаження: {ex.Message}");
         }
+    }
+
+    [HttpGet("me")]
+    public async Task<IActionResult> GetMe()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.Users
+            .Include(u => u.PreferredDisciplines)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+            
+        if (user == null) return NotFound();
+
+        var roles = await _userManager.GetRolesAsync(user);
+
+        string? avatarUrl = null;
+        if (!string.IsNullOrEmpty(user.AvatarS3Key))
+        {
+            avatarUrl = await _r2Service.GetPresignedViewUrlAsync(user.AvatarS3Key, 60 * 24 * 7); // 7 days expiration
+        }
+
+        var profile = new UserProfileDto
+        {
+            Id = user.Id,
+            Email = user.Email ?? string.Empty,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            UserName = user.UserName ?? string.Empty,
+            Roles = roles.ToList(),
+            IsVerified = user.IsVerified,
+            IsVerificationPending = user.IsVerificationPending,
+            AvatarUrl = avatarUrl,
+            PhoneNumber = user.PhoneNumber,
+            Telegram = user.Telegram,
+            PreferredDisciplineIds = user.PreferredDisciplines.Select(d => d.Id).ToList()
+        };
+
+        return Ok(profile);
+    }
+
+    [HttpPost("avatar")]
+    public async Task<IActionResult> UploadAvatar(IFormFile avatar)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        if (avatar == null || avatar.Length == 0)
+        {
+            return BadRequest(new { Message = "No file uploaded." });
+        }
+
+        try
+        {
+            var key = await _r2Service.UploadFileAsync(avatar, "avatars");
+            user.AvatarS3Key = key;
+            await _userManager.UpdateAsync(user);
+
+            var url = await _r2Service.GetPresignedViewUrlAsync(key, 60 * 24 * 7);
+            return Ok(new { avatarUrl = url });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Помилка завантаження: {ex.Message}");
+        }
+    }
+
+    [HttpPut("profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto model)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.Users
+            .Include(u => u.PreferredDisciplines)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+            
+        if (user == null) return NotFound();
+
+        user.FirstName = model.FirstName;
+        user.LastName = model.LastName;
+        user.AboutMe = model.AboutMe;
+        user.PhoneNumber = model.PhoneNumber;
+
+        string? formattedTelegram = model.Telegram;
+        if (!string.IsNullOrWhiteSpace(formattedTelegram) && !formattedTelegram.StartsWith("@"))
+        {
+            formattedTelegram = "@" + formattedTelegram;
+        }
+        user.Telegram = formattedTelegram;
+
+        // Оновлюємо дисципліни
+        var selectedDisciplines = await _context.Disciplines
+            .Where(d => model.PreferredDisciplineIds.Contains(d.Id))
+            .ToListAsync();
+
+        user.PreferredDisciplines.Clear();
+        user.PreferredDisciplines.AddRange(selectedDisciplines);
+
+        await _userManager.UpdateAsync(user);
+
+        return Ok(new { Message = "Профіль успішно оновлено." });
+    }
+
+    [HttpGet("reviews")]
+    public async Task<IActionResult> GetMyReviews()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        var isExecutor = await _userManager.IsInRoleAsync(user, "Executor");
+
+        var reviewsQuery = _context.Reviews
+            .Include(r => r.Order)
+            .Include(r => r.TargetUser)
+            .AsQueryable();
+
+        if (isExecutor)
+        {
+            // Виконавець бачить відгуки ПРО НЬОГО
+            reviewsQuery = reviewsQuery.Where(r => r.TargetUserId == userId);
+        }
+        else
+        {
+            // Клієнт бачить ВЛАСНІ відгуки
+            reviewsQuery = reviewsQuery.Where(r => r.AuthorId == userId);
+        }
+
+        var reviewsList = await reviewsQuery.OrderByDescending(r => r.CreatedAt).ToListAsync();
+        var authorIds = reviewsList.Select(r => r.AuthorId).Distinct().ToList();
+        var authors = await _userManager.Users.Where(u => authorIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u);
+
+        var result = new List<ReviewDto>();
+
+        foreach (var r in reviewsList)
+        {
+            var author = authors.GetValueOrDefault(r.AuthorId);
+            string? authorAvatarUrl = null;
+            if (author != null && !string.IsNullOrEmpty(author.AvatarS3Key))
+            {
+                authorAvatarUrl = await _r2Service.GetPresignedViewUrlAsync(author.AvatarS3Key, 60 * 24 * 7);
+            }
+
+            string? targetAvatarUrl = null;
+            if (r.TargetUser != null && !string.IsNullOrEmpty(r.TargetUser.AvatarS3Key))
+            {
+                targetAvatarUrl = await _r2Service.GetPresignedViewUrlAsync(r.TargetUser.AvatarS3Key, 60 * 24 * 7);
+            }
+
+            result.Add(new ReviewDto
+            {
+                Id = r.Id,
+                Rating = r.Rating,
+                Text = r.Text,
+                CreatedAt = r.CreatedAt,
+                
+                AuthorId = r.AuthorId,
+                AuthorName = author != null ? $"{author.FirstName} {author.LastName}".Trim() : "Unknown",
+                AuthorAvatarUrl = authorAvatarUrl,
+                
+                TargetUserId = r.TargetUserId,
+                TargetUserName = r.TargetUser != null ? $"{r.TargetUser.FirstName} {r.TargetUser.LastName}".Trim() : "Unknown",
+                TargetUserAvatarUrl = targetAvatarUrl,
+                
+                OrderId = r.OrderId,
+                OrderTitle = r.Order?.Title ?? "Unknown"
+            });
+        }
+
+        return Ok(result);
     }
 }

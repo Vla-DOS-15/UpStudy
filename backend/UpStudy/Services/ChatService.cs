@@ -150,6 +150,7 @@ public class ChatService : IChatService
         var dto = new ChatMessageDto
         {
             Id = message.Id,
+            ChatId = chat.Id,
             Text = message.Text,
             SentAt = message.SentAt,
             IsSystem = message.IsSystem,
@@ -166,6 +167,12 @@ public class ChatService : IChatService
         
         string groupName = $"chat_{chat.Id}";
         await _hubContext.Clients.Group(groupName).SendAsync("ReceiveMessage", dto);
+        
+        var recipientId = chat.Order.ClientId == senderId ? (chat.ParticipantId ?? chat.Order.ExecutorId) : chat.Order.ClientId;
+        if (!string.IsNullOrEmpty(recipientId))
+        {
+            await _hubContext.Clients.User(recipientId).SendAsync("ReceiveMessage", dto);
+        }
         
         return dto;
     }
@@ -215,6 +222,7 @@ public class ChatService : IChatService
         var dto = new ChatMessageDto
         {
             Id = message.Id, 
+            ChatId = chat.Id,
             Text = "", 
             SentAt = message.SentAt, 
             SenderId = senderId,
@@ -288,6 +296,7 @@ public class ChatService : IChatService
         var dto = new ChatMessageDto
         {
             Id = message.Id,
+            ChatId = chatId,
             Text = message.Text,
             SentAt = message.SentAt,
             IsSystem = message.IsSystem,
@@ -298,6 +307,12 @@ public class ChatService : IChatService
 
         string groupName = $"chat_{chatId}";
         await _hubContext.Clients.Group(groupName).SendAsync("ReceiveMessage", dto);
+
+        var recipientId = chat.Order.ClientId == senderId ? (chat.ParticipantId ?? chat.Order.ExecutorId) : chat.Order.ClientId;
+        if (!string.IsNullOrEmpty(recipientId))
+        {
+            await _hubContext.Clients.User(recipientId).SendAsync("ReceiveMessage", dto);
+        }
 
         return dto;
     }
@@ -338,6 +353,7 @@ public class ChatService : IChatService
         var dto = new ChatMessageDto
         {
             Id = message.Id, 
+            ChatId = chatId,
             Text = "", 
             SentAt = message.SentAt, 
             SenderId = senderId,
@@ -356,6 +372,13 @@ public class ChatService : IChatService
 
         string groupName = $"chat_{chatId}";
         await _hubContext.Clients.Group(groupName).SendAsync("ReceiveMessage", dto);
+
+        var recipientId = chat.Order.ClientId == senderId ? (chat.ParticipantId ?? chat.Order.ExecutorId) : chat.Order.ClientId;
+        if (!string.IsNullOrEmpty(recipientId))
+        {
+            await _hubContext.Clients.User(recipientId).SendAsync("ReceiveMessage", dto);
+        }
+
         return dto;
     }
 
@@ -403,10 +426,43 @@ public class ChatService : IChatService
                 OtherUserAvatar = avatarUrl,
                 LastMessage = lastMessage?.Text ?? (lastMessage != null && lastMessage.Text == string.Empty ? "Файл" : null),
                 LastMessageTime = lastMessage?.SentAt,
-                UnreadCount = 0 // Unread logic requires tracking which messages are read. For now, 0.
+                UnreadCount = chat.Messages.Count(m => !m.IsRead && m.SenderId != userId)
             });
         }
 
         return overviewList.OrderByDescending(c => c.LastMessageTime ?? DateTime.MinValue).ToList();
+    }
+
+    public async Task<int> GetTotalUnreadCountAsync(string userId)
+    {
+        var count = await _context.Chats
+            .Where(c => c.Order.ClientId == userId || c.ParticipantId == userId || c.Order.ExecutorId == userId)
+            .SelectMany(c => c.Messages)
+            .CountAsync(m => !m.IsRead && m.SenderId != userId);
+
+        return count;
+    }
+
+    public async Task MarkChatAsReadAsync(Guid chatId, string userId)
+    {
+        var chat = await _context.Chats
+            .Include(c => c.Messages)
+            .FirstOrDefaultAsync(c => c.Id == chatId && (c.Order.ClientId == userId || c.ParticipantId == userId || c.Order.ExecutorId == userId));
+
+        if (chat != null)
+        {
+            var unreadMessages = chat.Messages.Where(m => !m.IsRead && m.SenderId != userId).ToList();
+            if (unreadMessages.Any())
+            {
+                foreach (var message in unreadMessages)
+                {
+                    message.IsRead = true;
+                }
+                await _context.SaveChangesAsync();
+                
+                // Сповіщаємо клієнта про оновлення лічильника
+                await _hubContext.Clients.User(userId).SendAsync("UnreadCountUpdated");
+            }
+        }
     }
 }

@@ -1,9 +1,14 @@
-﻿using UpStudy.Dtos.Admin;
+using UpStudy.Dtos.Admin;
 
 namespace UpStudy.Interfaces;
 
 public interface IAdminService
 {
+    /// <summary>
+    /// Отримати загальну статистику для адмін-панелі
+    /// </summary>
+    Task<DashboardStatsDto> GetDashboardStatsAsync();
+
     /// <summary>
     /// Отримати список користувачів, які очікують верифікації (IsVerificationPending = true)
     /// </summary>

@@ -10,6 +10,11 @@ export interface User {
   role?: string;
   isVerified: boolean;
   isVerificationPending: boolean;
+  emailConfirmed: boolean;
+  avatarUrl?: string;
+  preferredDisciplineIds?: number[];
+  phoneNumber?: string;
+  telegram?: string;
 }
 
 export interface AuthResponse {
@@ -33,6 +38,8 @@ export interface RegisterDto {
   password: string;
   firstName?: string;
   lastName?: string;
+  phoneNumber?: string;
+  telegram?: string;
 }
 
 export interface RefreshTokenDto {
@@ -45,4 +52,31 @@ export interface AuthResponse {
   message: string;
   accessToken: string;
   refreshToken: string;
+}
+
+export interface TransactionDto {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  status: string;
+  isExpense: boolean;
+}
+
+export interface BalanceOverviewDto {
+  totalEarned: number;
+  totalSpent: number;
+  transactions: TransactionDto[];
+}
+
+export interface ConsultantPreviewDto {
+  id: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string | null;
+  rating: number;
+  completedOrdersCount: number;
+  isVerified: boolean;
+  aboutMe: string | null;
+  disciplines: string[];
 }

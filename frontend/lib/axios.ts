@@ -15,6 +15,7 @@ const api = axios.create({
   httpsAgent, // <--- 3. Додаємо агент сюди
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
   },
 });
 
@@ -81,6 +82,9 @@ api.interceptors.response.use(
             refreshToken: oldRefreshToken,
           },
           {
+            headers: {
+              'ngrok-skip-browser-warning': 'true'
+            },
             httpsAgent // <--- 4. ВАЖЛИВО: Додаємо агент і сюди, щоб рефреш працював на сервері
           }
         );
@@ -89,8 +93,8 @@ api.interceptors.response.use(
           const { accessToken, refreshToken } = response.data;
 
           // 1. Оновлюємо куки
-          Cookies.set('accessToken', accessToken);
-          Cookies.set('refreshToken', refreshToken);
+          Cookies.set('accessToken', accessToken, { expires: 7 });
+          Cookies.set('refreshToken', refreshToken, { expires: 7 });
 
           // 2. Оновлюємо заголовок в оригінальному запиті
           api.defaults.headers.common['Authorization'] = 'Bearer ' + accessToken; // Update default header just in case

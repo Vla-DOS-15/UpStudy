@@ -16,6 +16,259 @@ public static class DbInitializer
         await context.Database.MigrateAsync();
 
         // Перевірка: якщо вже є користувачі, значить база не порожня -> виходимо
+        if (!await context.Directions.AnyAsync(d => d.Name == "Технічні"))
+        {
+            var dirТехнічні = new Direction { Name = "Технічні" };
+            context.Directions.Add(dirТехнічні);
+            var dirПравові = new Direction { Name = "Правові" };
+            context.Directions.Add(dirПравові);
+            var dirПриродні = new Direction { Name = "Природні" };
+            context.Directions.Add(dirПриродні);
+            var dirЕкономічні = new Direction { Name = "Економічні" };
+            context.Directions.Add(dirЕкономічні);
+            var dirМедичні = new Direction { Name = "Медичні" };
+            context.Directions.Add(dirМедичні);
+            var dirМови = new Direction { Name = "Мови" };
+            context.Directions.Add(dirМови);
+            var dirГуманітарні = new Direction { Name = "Гуманітарні" };
+            context.Directions.Add(dirГуманітарні);
+            var dirКомпютерні = new Direction { Name = "Комп'ютерні" };
+            context.Directions.Add(dirКомпютерні);
+            await context.SaveChangesAsync();
+    
+            var disciplines = new List<Discipline>();
+            disciplines.Add(new Discipline { Name = "Автокад", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Автоматизація", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Архітектура та будівництво", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Будівельна механіка", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Будівлі та споруди", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Вища математика", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Геодезія", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Геометрія", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Гідравліка", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Деталі машин", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Дискретна математика", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Електроніка, електротехніка", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Інженерна графіка", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Математичний аналіз", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Матеріалознавство", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Машинобудування", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Метрологія", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Механіка", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Нарисна геометрія", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Опір матеріалів", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Оптимізаційні методи та моделі", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Охорона праці", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Прикладна механіка", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Радіотехніка", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Робототехніка", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Схемотехніка", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Теоретична механіка", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Теорія ігор", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Теорія ймовірності", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Теорія машин і механізмів", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Технічна механіка", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "ТОЕ", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Транспортні засоби", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Харчові технології", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Чисельні методи", DirectionId = dirТехнічні.Id });
+            disciplines.Add(new Discipline { Name = "Авторське право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Аграрне право України", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Адвокатура", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Адміністративне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Банківське право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Військове право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Господарське право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Екологічне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Земельне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Інтелектуальна власність", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Інформаційне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Історія держави і права", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Конституційне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Криміналістика", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Кримінальне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Кримінальний процес", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Кримінологія", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Медичне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Митне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Міжнародне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Нотаріат", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Податкове право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Поліцейська діяльність", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Право\\Юриспруденція", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Правознавство", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Римське право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Сімейне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Теорія держави і права", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Торговельне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Трудове право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Філософія права", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Фінансове право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Цивільне право", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Цивільний процес", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Юридична деонтологія", DirectionId = dirПравові.Id });
+            disciplines.Add(new Discipline { Name = "Агрономія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Алгебра", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Аналітична хімія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Астрономія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Атомна фізика", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Безпека життєдіяльності", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Біологія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Біотехнологія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Ботаніка", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Географія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Геологія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Зоологія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Математика", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Молекулярна фізика", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Неорганічна хімія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Органічна хімія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Поверхневі явища", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Природознавство", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Статистика", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Фізика", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Фізіологія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Хімія", DirectionId = dirПриродні.Id });
+            disciplines.Add(new Discipline { Name = "Адміністративний менеджмент", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Аналіз господарської діяльності", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Банк і банківські операції", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Банківська система", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Банківська справа", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Бізнес інформатика", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Бізнес планування", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Бухгалтерія", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Бухгалтерський облік та аудит", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Бюджетні системи", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Готельний менеджмент", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Готельно-ресторанна справа", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Гроші, кредит, банки", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Економетрика", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Економіка", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Економіка митної справи", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Економіка підприємства", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Економіка праці", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Економіка туризму", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Економічна історія", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Економічна теорія", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Економічний аналіз", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Інвестиції", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Інвестиційний аналіз", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Інноваційний менеджмент", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Комерційна діяльність", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Контролінг підприємства", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Логістика", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Макроекономіка", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Макрофінансової аналіз", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Маркетинг", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Маркетингові дослідження", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Менеджмент", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Митна справа", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Міжнародна економіка", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Міжнародні відносини", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Мікроекономіка", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Організація виробництва", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Підприємництво", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Податкова система", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Політекономія", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Публічне управління та адміністрування", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Регіональна економіка", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Світова економіка", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Стратегічне управління", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Страхування", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Товарознавство", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Торгова справа", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Туризм", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Управління персоналом", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Управління проектами", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Фінанси", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Фінанси підприємств", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Фінансовий аналіз", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Фінансовий менеджмент", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Фінансовий ринок", DirectionId = dirЕкономічні.Id });
+            disciplines.Add(new Discipline { Name = "Анатомія", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Біохімія", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Ветеринарія", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Генетика", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Екологія", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Медицина", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Мікробіологія", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Психодіагностика", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Стоматологія", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Фармакогнозія", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Фармакологія", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Фармація", DirectionId = dirМедичні.Id });
+            disciplines.Add(new Discipline { Name = "Англійська", DirectionId = dirМови.Id });
+            disciplines.Add(new Discipline { Name = "Іспанський", DirectionId = dirМови.Id });
+            disciplines.Add(new Discipline { Name = "Латинська мова", DirectionId = dirМови.Id });
+            disciplines.Add(new Discipline { Name = "Німецька", DirectionId = dirМови.Id });
+            disciplines.Add(new Discipline { Name = "Польська мова", DirectionId = dirМови.Id });
+            disciplines.Add(new Discipline { Name = "Російська мова", DirectionId = dirМови.Id });
+            disciplines.Add(new Discipline { Name = "Українська мова", DirectionId = dirМови.Id });
+            disciplines.Add(new Discipline { Name = "Французький", DirectionId = dirМови.Id });
+            disciplines.Add(new Discipline { Name = "Антична філософія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Археологія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Біографія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Всесвітня історія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Геополітика", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Демографія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Деонтологія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Дизайн", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Діловодство", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Документознавство", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Естетика", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Етика", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Журналістика", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Зарубіжна література", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Захист України", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Історія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Історія архітектури", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Історія журналістики", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Історія психології", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Історія релігії", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Історія розвитку політичних вчень", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Історія середніх віків", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Історія України", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Конфліктологія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Кулінарія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Культурологія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Лінгвістика", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Література", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Логіка", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Логопедія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Мистецтво", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Мовознавство", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Музика", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Образотворче мистецтво", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Основи наукових досліджень", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Педагогіка", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Політологія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Психологія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Публіцистика", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Реклама та PR", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Релігія і міфологія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Соціальна робота", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Соціологія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Суспільствознавство", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Українська література", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Фізична культура", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Філологія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Філософія", DirectionId = dirГуманітарні.Id });
+            disciplines.Add(new Discipline { Name = "Бази даних", DirectionId = dirКомпютерні.Id });
+            disciplines.Add(new Discipline { Name = "Інформатика", DirectionId = dirКомпютерні.Id });
+            disciplines.Add(new Discipline { Name = "Програмування", DirectionId = dirКомпютерні.Id });
+            disciplines.Add(new Discipline { Name = "Інформаційна безпека", DirectionId = dirКомпютерні.Id });
+            disciplines.Add(new Discipline { Name = "Інформаційні технології", DirectionId = dirКомпютерні.Id });
+            disciplines.Add(new Discipline { Name = "Кібербезпека", DirectionId = dirКомпютерні.Id });
+            disciplines.Add(new Discipline { Name = "Криптографія", DirectionId = dirКомпютерні.Id });
+            disciplines.Add(new Discipline { Name = "Штучний інтелект", DirectionId = dirКомпютерні.Id });
+            disciplines.Add(new Discipline { Name = "Excel", DirectionId = dirКомпютерні.Id });
+            disciplines.Add(new Discipline { Name = "MathCad", DirectionId = dirКомпютерні.Id });
+            disciplines.Add(new Discipline { Name = "MATLAB", DirectionId = dirКомпютерні.Id });
+            context.Disciplines.AddRange(disciplines);
+            await context.SaveChangesAsync();
+    
+        }
+
         if (await context.Users.AnyAsync()) return;
 
         // ==========================================
@@ -75,19 +328,6 @@ public static class DbInitializer
         // 3. ДОВІДНИКИ (Dictionaries)
         // ==========================================
         
-        // Напрямки
-        var dirIT = new Direction { Name = "Інформаційні технології" };
-        var dirEcon = new Direction { Name = "Економіка" };
-        var dirLaw = new Direction { Name = "Право" };
-        context.Directions.AddRange(dirIT, dirEcon, dirLaw);
-        await context.SaveChangesAsync(); // Зберігаємо, щоб отримати ID
-
-        // Дисципліни
-        var discCSharp = new Discipline { Name = "Програмування C#", DirectionId = dirIT.Id };
-        var discWeb = new Discipline { Name = "Web Technologies", DirectionId = dirIT.Id };
-        var discMicro = new Discipline { Name = "Мікроекономіка", DirectionId = dirEcon.Id };
-        context.Disciplines.AddRange(discCSharp, discWeb, discMicro);
-
         // Типи робіт
         var typeLab = new WorkType { Name = "Лабораторна робота" };
         var typeCourse = new WorkType { Name = "Курсова робота" };
@@ -101,6 +341,10 @@ public static class DbInitializer
         // ==========================================
 
         // --- Замовлення 1: НОВЕ (чекає виконавця) ---
+        var discCSharp = await context.Disciplines.FirstOrDefaultAsync(d => d.Name == "Програмування") ?? await context.Disciplines.FirstAsync();
+        var discWeb = await context.Disciplines.FirstOrDefaultAsync(d => d.Name == "Інформаційні технології") ?? await context.Disciplines.FirstAsync();
+        var discMicro = await context.Disciplines.FirstOrDefaultAsync(d => d.Name == "Мікроекономіка") ?? await context.Disciplines.FirstAsync();
+
         var orderNew = new Order
         {
             Id = Guid.NewGuid(),

@@ -39,21 +39,33 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
         let isMounted = true;
 
         const handleMessage = (msg: ChatMessageDto) => {
+            if (!isMounted) return; // Запобігаємо виконанню, якщо компонент вже демонтовано
+            
             setMessages((prev) => {
                 if (prev.some(m => m.id === msg.id)) return prev;
                 return [...prev, msg];
             });
+            // Якщо повідомлення від іншого користувача - відмічаємо як прочитане
+            if (msg.senderId !== user.id) {
+                chatService.markAsRead(chatId).catch(console.error);
+            }
         };
 
         const initChat = async () => {
             try {
                 // 1. Load History
                 const history = await chatService.getChatMessages(chatId);
-                if (isMounted) setMessages(history);
+                if (!isMounted) return;
+                setMessages(history);
+
+                // Відмітити всі завантаженні повідомлення як прочитані
+                await chatService.markAsRead(chatId);
+                if (!isMounted) return;
 
                 // 2. Start SignalR
                 await chatService.startConnection(token);
                 await chatService.joinChat(chatId);
+                if (!isMounted) return;
 
                 // 3. Listen for messages
                 chatService.offMessageReceived(handleMessage); // Safety cleanup

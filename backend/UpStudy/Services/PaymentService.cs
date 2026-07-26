@@ -167,4 +167,74 @@ public class PaymentService : IPaymentService
         var hashBytes = sha1.ComputeHash(Encoding.UTF8.GetBytes(source));
         return Convert.ToBase64String(hashBytes);
     }
+
+    public async Task<BalanceOverviewDto> GetBalanceOverviewAsync(string userId)
+    {
+        var overview = new BalanceOverviewDto();
+        var transactions = new List<TransactionDto>();
+
+        // 1. Direct Payments where user is Client (Spent)
+        var clientPayments = await _context.DirectPaymentRequests
+            .Include(pr => pr.Order)
+            .Where(pr => pr.Order.ClientId == userId && (pr.Status == PaymentRequestStatus.Confirmed || pr.Status == PaymentRequestStatus.MarkedAsPaid))
+            .ToListAsync();
+
+        foreach (var payment in clientPayments)
+        {
+            transactions.Add(new TransactionDto
+            {
+                Id = payment.Id,
+                Date = payment.PaidAt ?? payment.CreatedAt,
+                Description = $"Оплата виконавцю за замовлення #{payment.Order.OrderNumber}",
+                Amount = payment.Amount,
+                Status = payment.Status == PaymentRequestStatus.Confirmed ? "Успішно" : "В обробці",
+                IsExpense = true
+            });
+            if (payment.Status == PaymentRequestStatus.Confirmed) 
+                overview.TotalSpent += payment.Amount;
+        }
+
+        // 2. Commission Payments where user is Client (Spent)
+        var commissionPayments = await _context.Orders
+            .Where(o => o.ClientId == userId && o.IsCommissionPaid == true && o.PlatformCommission > 0)
+            .ToListAsync();
+
+        foreach (var order in commissionPayments)
+        {
+            transactions.Add(new TransactionDto
+            {
+                Id = Guid.NewGuid(),
+                Date = order.CreatedAt, 
+                Description = $"Комісія сервісу за замовлення #{order.OrderNumber}",
+                Amount = order.PlatformCommission,
+                Status = "Успішно",
+                IsExpense = true
+            });
+            overview.TotalSpent += order.PlatformCommission;
+        }
+
+        // 3. Direct Payments where user is Executor (Earned)
+        var executorPayments = await _context.DirectPaymentRequests
+            .Include(pr => pr.Order)
+            .Where(pr => pr.Order.ExecutorId == userId && (pr.Status == PaymentRequestStatus.Confirmed || pr.Status == PaymentRequestStatus.MarkedAsPaid))
+            .ToListAsync();
+
+        foreach (var payment in executorPayments)
+        {
+            transactions.Add(new TransactionDto
+            {
+                Id = payment.Id,
+                Date = payment.PaidAt ?? payment.CreatedAt,
+                Description = $"Отримано за замовлення #{payment.Order.OrderNumber}",
+                Amount = payment.Amount,
+                Status = payment.Status == PaymentRequestStatus.Confirmed ? "Успішно" : "В обробці",
+                IsExpense = false
+            });
+            if (payment.Status == PaymentRequestStatus.Confirmed) 
+                overview.TotalEarned += payment.Amount;
+        }
+
+        overview.Transactions = transactions.OrderByDescending(t => t.Date).ToList();
+        return overview;
+    }
 }

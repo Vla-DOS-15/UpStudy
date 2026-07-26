@@ -92,4 +92,21 @@ public class PaymentsController : ControllerBase
         await _paymentService.ConfirmInvoiceAsync(id, userId!);
         return Ok(new { Message = "Оплату підтверджено" });
     }
+
+    // [Спільне] Огляд балансу та історії транзакцій
+    [HttpGet("balance")]
+    [Authorize]
+    public async Task<IActionResult> GetBalanceOverview()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        try
+        {
+            var overview = await _paymentService.GetBalanceOverviewAsync(userId!);
+            return Ok(overview);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+    }
 }

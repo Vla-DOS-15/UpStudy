@@ -7,8 +7,9 @@ import { uk } from 'date-fns/locale';
 import {
   Clock, CalendarDays, Eye, FileText, Download,
   Loader2, Users, MessageSquare, ChevronDown, ChevronUp,
-  UserCircle, Award, Star, CheckCircle, MoreVertical, Pencil, Trash, Edit
+  UserCircle, Award, Star, CheckCircle, MoreVertical, Pencil, Trash, Edit, StarHalf
 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -74,6 +75,13 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -138,6 +146,45 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
   const handleEdit = () => {
     // Переходимо на сторінку створення з параметром edit
     router.push(`/dashboard/create-order?edit=${orderPreview.id}`);
+  };
+
+  const handleCompleteOrderClick = () => {
+    setIsCompleteModalOpen(true);
+  };
+
+  const onConfirmComplete = async () => {
+    try {
+      setIsCompleting(true);
+      await orderService.completeOrder(orderPreview.id);
+      toast.success('Завдання успішно завершено!');
+      setIsCompleteModalOpen(false);
+      setIsReviewModalOpen(true);
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.Error || 'Не вдалося завершити завдання');
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  const handleSkipReview = () => {
+    setIsReviewModalOpen(false);
+    window.location.reload();
+  };
+
+  const handleSubmitReview = async () => {
+    try {
+      setIsSubmittingReview(true);
+      await orderService.leaveReview(orderPreview.id, { rating: reviewRating, text: reviewText });
+      toast.success('Відгук успішно додано!');
+      setIsReviewModalOpen(false);
+      window.location.reload();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.Error || 'Не вдалося додати відгук');
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   const handleDeleteClick = () => {
@@ -364,6 +411,11 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
                           <DropdownMenuItem onClick={handleEdit}>
                             <Pencil className="w-4 h-4 mr-2" /> Редагувати
                           </DropdownMenuItem>
+                          {(orderPreview.status === 'InProgress' || orderPreview.status === 'Review') && (
+                            <DropdownMenuItem onClick={handleCompleteOrderClick} className="text-green-600 focus:text-green-600 focus:bg-green-50">
+                              <CheckCircle className="w-4 h-4 mr-2" /> Завершити завдання
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={handleDeleteClick} className="text-red-600 focus:text-red-600 focus:bg-red-50">
                             <Trash className="w-4 h-4 mr-2" /> Видалити
                           </DropdownMenuItem>
@@ -624,6 +676,94 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
             <Button variant="destructive" onClick={onConfirmDelete} disabled={isDeleting}>
               {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash className="mr-2 h-4 w-4" />}
               Видалити
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Complete Order Confirmation Modal */}
+      <Dialog open={isCompleteModalOpen} onOpenChange={setIsCompleteModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Завершити завдання?</DialogTitle>
+            <DialogDescription>
+              Ви впевнені, що хочете завершити завдання? Зарезервовані кошти будуть автоматично перераховані виконавцю. Цю дію неможливо скасувати.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCompleteModalOpen(false)} disabled={isCompleting}>
+              Скасувати
+            </Button>
+            <Button 
+              variant="default" 
+              className="bg-green-600 hover:bg-green-700 text-white" 
+              onClick={onConfirmComplete} 
+              disabled={isCompleting}
+            >
+              {isCompleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+              Завершити
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Review Modal */}
+      <Dialog open={isReviewModalOpen} onOpenChange={(open) => {
+        if (!open) handleSkipReview();
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Оцініть роботу виконавця</DialogTitle>
+            <DialogDescription>
+              Поділіться своїми враженнями від співпраці. Ваша оцінка допоможе іншим замовникам.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-sm font-medium">Оцінка:</span>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setReviewRating(star)}
+                    className="focus:outline-none transition-colors"
+                  >
+                    <Star
+                      className={cn(
+                        "w-8 h-8",
+                        star <= reviewRating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30 hover:text-yellow-400/50"
+                      )}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Відгук (необов'язково):</label>
+              <Textarea
+                placeholder="Напишіть кілька слів про співпрацю..."
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={handleSkipReview} disabled={isSubmittingReview}>
+              Пропустити
+            </Button>
+            <Button 
+              variant="default" 
+              onClick={handleSubmitReview} 
+              disabled={isSubmittingReview}
+            >
+              {isSubmittingReview ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Star className="mr-2 h-4 w-4" />}
+              Надіслати відгук
             </Button>
           </DialogFooter>
         </DialogContent>

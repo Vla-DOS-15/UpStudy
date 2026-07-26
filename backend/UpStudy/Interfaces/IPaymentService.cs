@@ -15,4 +15,7 @@ public interface IPaymentService
     Task<DirectPaymentRequest> CreateInvoiceAsync(string executorId, CreateInvoiceDto dto);
     Task ConfirmInvoiceAsync(Guid invoiceId, string executorId); // Виконавець підтверджує отримання
     Task MarkInvoiceAsPaidAsync(Guid invoiceId, string clientId); // Клієнт каже "Я оплатив"
+
+    // 6.3 Огляд балансу та транзакцій
+    Task<BalanceOverviewDto> GetBalanceOverviewAsync(string userId);
 }

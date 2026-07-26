@@ -11,5 +11,31 @@ export const accountService = {
       },
     });
     return response.data;
+  },
+
+  async getMe() {
+    const response = await api.get('/Account/me');
+    return response.data;
+  },
+
+  async uploadAvatar(file: File) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    const response = await api.post('/Account/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  async updateProfile(data: any) {
+    const response = await api.put('/Account/profile', data);
+    return response.data;
+  },
+
+  async getMyReviews() {
+    const response = await api.get('/Account/reviews');
+    return response.data;
   }
 };

@@ -14,26 +14,26 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 
+export const adminLinks = [
+  { href: '/admin', label: 'Огляд', icon: LayoutDashboard },
+  { href: '/admin/verifications', label: 'Заявки верифікації', icon: FileCheck },
+  { href: '/admin/users', label: 'Користувачі', icon: Users },
+  { href: '/admin/orders', label: 'Замовлення', icon: FileCheck }, // Додамо на майбутнє
+  { href: '/admin/payments', label: 'Платежі', icon: Banknote },
+];
+
 export function AdminSidebar() {
   const pathname = usePathname();
   const { logout } = useAuth();
 
-  const links = [
-    { href: '/admin', label: 'Огляд', icon: LayoutDashboard },
-    { href: '/admin/verifications', label: 'Заявки верифікації', icon: FileCheck },
-    { href: '/admin/users', label: 'Користувачі', icon: Users },
-    { href: '/admin/payments', label: 'Платежі', icon: Banknote },
-    // { href: '/admin/reports', label: 'Скарги', icon: ShieldAlert }, // На майбутнє
-  ];
-
   return (
-    <aside className="w-64 border-r bg-muted/20 min-h-screen flex flex-col">
+    <aside className="w-64 border-r bg-muted/20 min-h-screen hidden md:flex flex-col">
       <div className="h-16 flex items-center px-6 border-b">
         <span className="text-xl font-bold text-primary">UpStudy Admin</span>
       </div>
 
       <nav className="flex-1 p-4 space-y-2">
-        {links.map((link) => {
+        {adminLinks.map((link) => {
           const isActive = pathname === link.href;
           return (
             <Link

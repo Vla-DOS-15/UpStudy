@@ -25,6 +25,21 @@ namespace UpStudy.Migrations
             modelBuilder.HasSequence<int>("OrderNumberSeq")
                 .StartsAt(1000L);
 
+            modelBuilder.Entity("AppUserDiscipline", b =>
+                {
+                    b.Property<string>("ExecutorsId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("PreferredDisciplinesId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ExecutorsId", "PreferredDisciplinesId");
+
+                    b.HasIndex("PreferredDisciplinesId");
+
+                    b.ToTable("AppUserDiscipline");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -192,6 +207,12 @@ namespace UpStudy.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("EmailVerificationCode")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("EmailVerificationCodeExpiry")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -242,6 +263,9 @@ namespace UpStudy.Migrations
                         .HasColumnType("double precision");
 
                     b.Property<string>("SecurityStamp")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Telegram")
                         .HasColumnType("text");
 
                     b.Property<bool>("TwoFactorEnabled")
@@ -322,6 +346,9 @@ namespace UpStudy.Migrations
 
                     b.Property<Guid>("ChatId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsSystem")
                         .HasColumnType("boolean");
@@ -694,6 +721,21 @@ namespace UpStudy.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("WorkTypes");
+                });
+
+            modelBuilder.Entity("AppUserDiscipline", b =>
+                {
+                    b.HasOne("UpStudy.Models.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ExecutorsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UpStudy.Models.Discipline", null)
+                        .WithMany()
+                        .HasForeignKey("PreferredDisciplinesId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

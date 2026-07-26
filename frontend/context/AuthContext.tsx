@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import Cookies from 'js-cookie';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { LoginDto, RegisterDto, User } from '@/types';
 import { authService } from '@/services/authService';
 import { jwtDecode } from 'jwt-decode';
@@ -12,6 +12,7 @@ interface AuthContextType {
   login: (data: LoginDto) => Promise<void>;
   register: (data: RegisterDto) => Promise<void>;
   logout: () => void;
+  updateUser: (updatedFields: Partial<User>) => void;
   isLoading: boolean;
 }
 
@@ -21,50 +22,98 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
+
+  const updateUser = (updatedFields: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...updatedFields } : null);
+  };
 
   useEffect(() => {
-    const token = Cookies.get('accessToken');
-    if (token) {
-      try {
-        const decoded: any = jwtDecode(token);
-        setUser({
-          id: decoded.nameid || decoded.sub,
-          email: decoded.email,
-          firstName: decoded.given_name || '',
-          lastName: decoded.family_name || '',
-          userName: decoded.family_name || '',
-          roles: decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [],
-          // Конвертуємо рядки "True"/"False" або булеві значення
-          isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
-          isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
-        });
-      } catch (e) {
-        logout();
+    const fetchUser = async () => {
+      const token = Cookies.get('accessToken');
+      if (token) {
+        try {
+          const decoded: any = jwtDecode(token);
+          let currentUser: User = {
+            id: decoded.nameid || decoded.sub,
+            email: decoded.email,
+            firstName: decoded.given_name || '',
+            lastName: decoded.family_name || '',
+            userName: decoded.family_name || '',
+            roles: decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [],
+            isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
+            isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
+            emailConfirmed: decoded.EmailConfirmed === 'True' || decoded.EmailConfirmed === true,
+          };
+          
+          setUser(currentUser); // Одразу встановлюємо базові дані з токена
+
+          try {
+            const { accountService } = await import('@/services/accountService');
+            const me = await accountService.getMe();
+            if (me) {
+              currentUser = {
+                ...currentUser,
+                firstName: me.firstName || currentUser.firstName,
+                lastName: me.lastName || currentUser.lastName,
+                avatarUrl: me.avatarUrl,
+                preferredDisciplineIds: me.preferredDisciplineIds || [],
+              };
+              setUser(currentUser);
+            }
+          } catch (e) {
+            console.error('Failed to fetch full profile', e);
+          }
+        } catch (e) {
+          logout();
+        }
+      }
+      setIsLoading(false);
+    };
+
+    fetchUser();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      const isProtected = pathname.startsWith('/dashboard');
+      if (isProtected && !user.emailConfirmed && !user.roles?.includes('Admin')) {
+        router.push('/verify-email');
       }
     }
-    setIsLoading(false);
-  }, []);
+  }, [isLoading, user, pathname, router]);
 
   const login = async (data: LoginDto) => {
     try {
       const res = await authService.login(data);
       if (res.isSuccess) {
-        Cookies.set('accessToken', res.accessToken);
-        Cookies.set('refreshToken', res.refreshToken);
+        Cookies.set('accessToken', res.accessToken, { expires: 7 });
+        Cookies.set('refreshToken', res.refreshToken, { expires: 7 });
         
         const decoded: any = jwtDecode(res.accessToken);
-        setUser({
-            id: decoded.nameid,
-            email: decoded.email,
-            firstName: decoded.given_name || 'User',
-            lastName: '',
-            userName: decoded.family_name || '',
-            roles: decoded.role || [],
-            isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
-            isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
-        });
-        
-        router.push('/dashboard');
+            const userRoles = decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [];
+            
+            setUser({
+                id: decoded.nameid,
+                email: decoded.email,
+                firstName: decoded.given_name || 'User',
+                lastName: '',
+                userName: decoded.family_name || '',
+                roles: userRoles,
+                isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
+                isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
+                emailConfirmed: decoded.EmailConfirmed === 'True' || decoded.EmailConfirmed === true,
+            });
+            
+            const isEmailConfirmed = decoded.EmailConfirmed === 'True' || decoded.EmailConfirmed === true;
+
+            if (userRoles.includes('Admin')) {
+                router.push('/admin');
+            } else if (!isEmailConfirmed) {
+                router.push('/verify-email');
+            } else {
+                router.push('/dashboard');
+            }
       } else {
         throw new Error(res.message || 'Помилка входу');
       }
@@ -96,7 +145,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

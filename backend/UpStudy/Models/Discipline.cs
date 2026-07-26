@@ -7,4 +7,6 @@ public class Discipline
     
     public int DirectionId { get; set; }
     public Direction Direction { get; set; } = null!;
+    
+    public List<AppUser> Executors { get; set; } = new();
 }
