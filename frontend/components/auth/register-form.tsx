@@ -106,6 +106,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
           <Input id="userName" placeholder="vlad_dev" value={formData.userName} onChange={handleChange} required />
         </div>
 
+        {role === 'Executor' && (
           <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

@@ -21,6 +21,9 @@ public class AppUser : IdentityUser
     
     public string? Telegram { get; set; }
     
+    public string? EmailVerificationCode { get; set; }
+    public DateTime? EmailVerificationCodeExpiry { get; set; }
+
     public bool IsVerified { get; set; } = false;
     public bool IsVerificationPending { get; set; } = false;    
     public string? VerificationRejectReason { get; set; }

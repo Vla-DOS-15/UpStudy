@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import Cookies from 'js-cookie';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { LoginDto, RegisterDto, User } from '@/types';
 import { authService } from '@/services/authService';
 import { jwtDecode } from 'jwt-decode';
@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   const updateUser = (updatedFields: Partial<User>) => {
     setUser(prev => prev ? { ...prev, ...updatedFields } : null);
@@ -42,6 +43,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             roles: decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [],
             isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
             isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
+            emailConfirmed: decoded.EmailConfirmed === 'True' || decoded.EmailConfirmed === true,
           };
           
           setUser(currentUser); // Одразу встановлюємо базові дані з токена
@@ -72,6 +74,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     fetchUser();
   }, []);
 
+  useEffect(() => {
+    if (!isLoading && user) {
+      const isProtected = pathname.startsWith('/dashboard');
+      if (isProtected && !user.emailConfirmed && !user.roles?.includes('Admin')) {
+        router.push('/verify-email');
+      }
+    }
+  }, [isLoading, user, pathname, router]);
+
   const login = async (data: LoginDto) => {
     try {
       const res = await authService.login(data);
@@ -91,10 +102,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 roles: userRoles,
                 isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
                 isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
+                emailConfirmed: decoded.EmailConfirmed === 'True' || decoded.EmailConfirmed === true,
             });
             
+            const isEmailConfirmed = decoded.EmailConfirmed === 'True' || decoded.EmailConfirmed === true;
+
             if (userRoles.includes('Admin')) {
                 router.push('/admin');
+            } else if (!isEmailConfirmed) {
+                router.push('/verify-email');
             } else {
                 router.push('/dashboard');
             }

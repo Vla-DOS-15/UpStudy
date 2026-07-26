@@ -17,17 +17,20 @@ public class AuthService : IAuthService
     private readonly IConfiguration _configuration;
     private readonly ApplicationDbContext _context;
     private readonly RoleManager<IdentityRole> _roleManager;
+    private readonly IEmailService _emailService;
     
     public AuthService(
         UserManager<AppUser> userManager, 
         IConfiguration configuration,
         ApplicationDbContext context,
-        RoleManager<IdentityRole> roleManager)
+        RoleManager<IdentityRole> roleManager,
+        IEmailService emailService)
     {
         _userManager = userManager;
         _configuration = configuration;
         _context = context;
         _roleManager = roleManager;
+        _emailService = emailService;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto model)
@@ -73,7 +76,10 @@ public class AuthService : IAuthService
             LastName = model.Role == "Client" ? (model.LastName ?? "") : model.LastName!,
             PhoneNumber = model.PhoneNumber,
             Telegram = formattedTelegram,
-            SecurityStamp = Guid.NewGuid().ToString()
+            SecurityStamp = Guid.NewGuid().ToString(),
+            EmailConfirmed = false,
+            EmailVerificationCode = new Random().Next(1000, 10000).ToString(),
+            EmailVerificationCodeExpiry = DateTime.UtcNow.AddMinutes(5)
             // IsVerified = false за замовчуванням
         };
 
@@ -96,9 +102,15 @@ public class AuthService : IAuthService
         // Тепер безпечно додаємо користувача до ролі
         await _userManager.AddToRoleAsync(user, model.Role);
 
-        
+        // Відправляємо код підтвердження
+        string emailBody = $@"
+            <h2>Ласкаво просимо до UpStudy!</h2>
+            <p>Ваш код для підтвердження пошти: <b>{user.EmailVerificationCode}</b></p>
+            <p>Код дійсний 5 хвилин.</p>";
+        await _emailService.SendEmailAsync(user.Email, "Підтвердження реєстрації", emailBody);
+
         var authResponse = await GenerateTokensAndSaveAsync(user);
-        authResponse.Message = "Реєстрація успішна!";
+        authResponse.Message = "Реєстрація успішна! Будь ласка, підтвердіть вашу пошту.";
 
         return authResponse;
     }
@@ -228,9 +240,12 @@ public class AuthService : IAuthService
             new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Email, user.Email!),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.Name, user.UserName ?? ""),
+            new Claim(ClaimTypes.GivenName, user.FirstName ?? ""),
+            new Claim(ClaimTypes.Surname, user.LastName ?? ""),
             new Claim("IsVerified", user.IsVerified.ToString()),
-            new Claim("IsVerificationPending", user.IsVerificationPending.ToString())
-
+            new Claim("IsVerificationPending", user.IsVerificationPending.ToString()),
+            new Claim("EmailConfirmed", user.EmailConfirmed.ToString())
         };
 
         // Додаємо ролі в Claims
@@ -356,5 +371,54 @@ public class AuthService : IAuthService
         {
             return null;
         }
+    }
+
+    public async Task<AuthResponseDto> VerifyEmailAsync(VerifyEmailDto model)
+    {
+        var user = await _userManager.FindByEmailAsync(model.Email);
+        if (user == null)
+            return new AuthResponseDto { IsSuccess = false, Message = "Користувача не знайдено." };
+
+        if (user.EmailConfirmed)
+            return new AuthResponseDto { IsSuccess = false, Message = "Пошта вже підтверджена." };
+
+        if (user.EmailVerificationCode != model.Code)
+            return new AuthResponseDto { IsSuccess = false, Message = "Неправильний код підтвердження." };
+
+        if (user.EmailVerificationCodeExpiry == null || user.EmailVerificationCodeExpiry < DateTime.UtcNow)
+            return new AuthResponseDto { IsSuccess = false, Message = "Код підтвердження недійсний або його термін дії минув." };
+
+        user.EmailConfirmed = true;
+        user.EmailVerificationCode = null;
+        user.EmailVerificationCodeExpiry = null;
+
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+            return new AuthResponseDto { IsSuccess = false, Message = "Помилка при підтвердженні пошти." };
+
+        return await GenerateTokensAndSaveAsync(user);
+    }
+
+    public async Task<AuthResponseDto> ResendVerificationAsync(ResendVerificationDto model)
+    {
+        var user = await _userManager.FindByEmailAsync(model.Email);
+        if (user == null)
+            return new AuthResponseDto { IsSuccess = false, Message = "Користувача не знайдено." };
+
+        if (user.EmailConfirmed)
+            return new AuthResponseDto { IsSuccess = false, Message = "Пошта вже підтверджена." };
+
+        user.EmailVerificationCode = new Random().Next(1000, 10000).ToString();
+        user.EmailVerificationCodeExpiry = DateTime.UtcNow.AddMinutes(5);
+
+        await _userManager.UpdateAsync(user);
+
+        string emailBody = $@"
+            <h2>Ласкаво просимо до UpStudy!</h2>
+            <p>Ваш новий код для підтвердження пошти: <b>{user.EmailVerificationCode}</b></p>
+            <p>Код дійсний 5 хвилин.</p>";
+        await _emailService.SendEmailAsync(user.Email, "Новий код підтвердження реєстрації", emailBody);
+
+        return new AuthResponseDto { IsSuccess = true, Message = "Новий код відправлено на пошту." };
     }
 }

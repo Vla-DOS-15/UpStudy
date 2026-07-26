@@ -15,6 +15,7 @@ const api = axios.create({
   httpsAgent, // <--- 3. Додаємо агент сюди
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
   },
 });
 
@@ -81,6 +82,9 @@ api.interceptors.response.use(
             refreshToken: oldRefreshToken,
           },
           {
+            headers: {
+              'ngrok-skip-browser-warning': 'true'
+            },
             httpsAgent // <--- 4. ВАЖЛИВО: Додаємо агент і сюди, щоб рефреш працював на сервері
           }
         );

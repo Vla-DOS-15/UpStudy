@@ -30,4 +30,14 @@ export const authService = {
     const response = await api.post<AuthResponse>('/Auth/refresh-token', data);
     return response.data;
   },
+
+  async verifyEmail(email: string, code: string) {
+    const response = await api.post<AuthResponse>('/Auth/verify-email', { email, code });
+    return response.data;
+  },
+
+  async resendVerification(email: string) {
+    const response = await api.post<AuthResponse>('/Auth/resend-verification', { email });
+    return response.data;
+  },
 };

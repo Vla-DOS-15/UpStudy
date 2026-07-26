@@ -10,6 +10,7 @@ export interface User {
   role?: string;
   isVerified: boolean;
   isVerificationPending: boolean;
+  emailConfirmed: boolean;
   avatarUrl?: string;
   preferredDisciplineIds?: number[];
   phoneNumber?: string;

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -6,12 +6,14 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
         <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
-    </PropertyGroup>
+      <UserSecretsId>88e17ebb-0d11-47cd-96b8-b026c52dd63e</UserSecretsId>
+  </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.3.20" />
         <PackageReference Include="AWSSDK.S3" Version="4.0.17.2" />
         <PackageReference Include="Google.Apis.Auth" Version="1.73.0" />
+        <PackageReference Include="MailKit" Version="4.17.0" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.1" />
         <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.1" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
