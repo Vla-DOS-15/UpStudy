@@ -53,3 +53,18 @@ export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
 }
+
+export interface TransactionDto {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  status: string;
+  isExpense: boolean;
+}
+
+export interface BalanceOverviewDto {
+  totalEarned: number;
+  totalSpent: number;
+  transactions: TransactionDto[];
+}
