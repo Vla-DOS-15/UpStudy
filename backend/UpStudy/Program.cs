@@ -80,6 +80,7 @@ builder.Services.AddAuthorization(options =>
 
 // Реєстрація сервісів
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IConsultantService, ConsultantService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();

@@ -238,8 +238,15 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
         // або використовував функціонал DirectPaymentRequest (який варто перевірити тут, якщо суворо).
         
         order.Status = OrderStatus.Completed;
-
-        // Тут можна відправити нотифікацію виконавцю: "Клієнт підтвердив виконання!"
+        
+        if (!string.IsNullOrEmpty(order.ExecutorId))
+        {
+            var executor = await _context.Users.FindAsync(order.ExecutorId);
+            if (executor != null)
+            {
+                executor.CompletedOrdersCount += 1;
+            }
+        }
 
         await _context.SaveChangesAsync();
         
@@ -329,8 +336,18 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
 
         _context.Reviews.Add(review);
     
-        // (Опціонально) Тут можна перерахувати середній рейтинг юзера і зберегти його в AppUser, 
-        // якщо ви додасте поле Rating в таблицю юзерів.
+        // Перерахунок рейтингу
+        var executor = await _context.Users.FindAsync(order.ExecutorId);
+        if (executor != null)
+        {
+            var previousReviews = await _context.Reviews
+                .Where(r => r.TargetUserId == order.ExecutorId)
+                .Select(r => (double)r.Rating)
+                .ToListAsync();
+                
+            previousReviews.Add(dto.Rating);
+            executor.Rating = previousReviews.Average();
+        }
     
         await _context.SaveChangesAsync();
     }

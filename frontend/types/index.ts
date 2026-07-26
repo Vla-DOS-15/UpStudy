@@ -68,3 +68,15 @@ export interface BalanceOverviewDto {
   totalSpent: number;
   transactions: TransactionDto[];
 }
+
+export interface ConsultantPreviewDto {
+  id: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string | null;
+  rating: number;
+  completedOrdersCount: number;
+  isVerified: boolean;
+  aboutMe: string | null;
+  disciplines: string[];
+}
