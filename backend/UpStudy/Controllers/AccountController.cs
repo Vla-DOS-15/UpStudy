@@ -189,4 +189,75 @@ public class AccountController : ControllerBase
 
         return Ok(new { Message = "Профіль успішно оновлено." });
     }
+
+    [HttpGet("reviews")]
+    public async Task<IActionResult> GetMyReviews()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        var isExecutor = await _userManager.IsInRoleAsync(user, "Executor");
+
+        var reviewsQuery = _context.Reviews
+            .Include(r => r.Order)
+            .Include(r => r.TargetUser)
+            .AsQueryable();
+
+        if (isExecutor)
+        {
+            // Виконавець бачить відгуки ПРО НЬОГО
+            reviewsQuery = reviewsQuery.Where(r => r.TargetUserId == userId);
+        }
+        else
+        {
+            // Клієнт бачить ВЛАСНІ відгуки
+            reviewsQuery = reviewsQuery.Where(r => r.AuthorId == userId);
+        }
+
+        var reviewsList = await reviewsQuery.OrderByDescending(r => r.CreatedAt).ToListAsync();
+        var authorIds = reviewsList.Select(r => r.AuthorId).Distinct().ToList();
+        var authors = await _userManager.Users.Where(u => authorIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u);
+
+        var result = new List<ReviewDto>();
+
+        foreach (var r in reviewsList)
+        {
+            var author = authors.GetValueOrDefault(r.AuthorId);
+            string? authorAvatarUrl = null;
+            if (author != null && !string.IsNullOrEmpty(author.AvatarS3Key))
+            {
+                authorAvatarUrl = await _r2Service.GetPresignedViewUrlAsync(author.AvatarS3Key, 60 * 24 * 7);
+            }
+
+            string? targetAvatarUrl = null;
+            if (r.TargetUser != null && !string.IsNullOrEmpty(r.TargetUser.AvatarS3Key))
+            {
+                targetAvatarUrl = await _r2Service.GetPresignedViewUrlAsync(r.TargetUser.AvatarS3Key, 60 * 24 * 7);
+            }
+
+            result.Add(new ReviewDto
+            {
+                Id = r.Id,
+                Rating = r.Rating,
+                Text = r.Text,
+                CreatedAt = r.CreatedAt,
+                
+                AuthorId = r.AuthorId,
+                AuthorName = author != null ? $"{author.FirstName} {author.LastName}".Trim() : "Unknown",
+                AuthorAvatarUrl = authorAvatarUrl,
+                
+                TargetUserId = r.TargetUserId,
+                TargetUserName = r.TargetUser != null ? $"{r.TargetUser.FirstName} {r.TargetUser.LastName}".Trim() : "Unknown",
+                TargetUserAvatarUrl = targetAvatarUrl,
+                
+                OrderId = r.OrderId,
+                OrderTitle = r.Order?.Title ?? "Unknown"
+            });
+        }
+
+        return Ok(result);
+    }
 }

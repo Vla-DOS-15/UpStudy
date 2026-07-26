@@ -14,6 +14,7 @@ import { Camera, Loader2 } from 'lucide-react';
 import { useRef, useState, useEffect } from 'react';
 import { accountService } from '@/services/accountService';
 import { dictionaryService } from '@/services/dictionaryService';
+import ProfileReviews from '@/components/profile/ProfileReviews';
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
@@ -142,100 +143,105 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Основна інформація</CardTitle>
-            <CardDescription>Оновіть свої особисті дані та налаштування роботи.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSave} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">Ім'я</Label>
-                  <Input id="firstName" value={firstName} onChange={e => setFirstName(e.target.value)} required />
+        <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Основна інформація</CardTitle>
+              <CardDescription>Оновіть свої особисті дані та налаштування роботи.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSave} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">Ім'я</Label>
+                    <Input id="firstName" value={firstName} onChange={e => setFirstName(e.target.value)} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Прізвище</Label>
+                    <Input id="lastName" value={lastName} onChange={e => setLastName(e.target.value)} required />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Прізвище</Label>
-                  <Input id="lastName" value={lastName} onChange={e => setLastName(e.target.value)} required />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" defaultValue={user.email} disabled className="bg-muted" />
+                  </div>
+                  {isExecutor && (
+                    <div className="space-y-2">
+                      <Label htmlFor="phoneNumber">Номер телефону</Label>
+                      <Input id="phoneNumber" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} required />
+                    </div>
+                  )}
                 </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" defaultValue={user.email} disabled className="bg-muted" />
-                </div>
+
                 {isExecutor && (
                   <div className="space-y-2">
-                    <Label htmlFor="phoneNumber">Номер телефону</Label>
-                    <Input id="phoneNumber" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} required />
+                    <Label htmlFor="telegram">Telegram (опціонально)</Label>
+                    <Input id="telegram" placeholder="@vlad_dev" value={telegram} onChange={e => setTelegram(e.target.value)} />
                   </div>
                 )}
-              </div>
 
-              {isExecutor && (
-                <div className="space-y-2">
-                  <Label htmlFor="telegram">Telegram (опціонально)</Label>
-                  <Input id="telegram" placeholder="@vlad_dev" value={telegram} onChange={e => setTelegram(e.target.value)} />
-                </div>
-              )}
-
-              {isExecutor && directions.length > 0 && (
-                <div className="space-y-3 pt-4">
-                  <Label className="text-base font-semibold">Бажані дисципліни</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Оберіть предмети, з яких ви хочете отримувати замовлення.
-                  </p>
-                  <Accordion type="multiple" className="w-full border rounded-md px-4">
-                    {directions.map((dir, idx) => {
-                      const selectedCount = dir.disciplines.filter((d: any) => preferredDisciplineIds.includes(d.id)).length;
-                      return (
-                        <AccordionItem value={`item-${dir.id}`} key={dir.id} className={idx === directions.length - 1 ? "border-b-0" : ""}>
-                          <AccordionTrigger className="hover:no-underline">
-                            <span className="flex items-center gap-2">
-                              {dir.name}
-                              {selectedCount > 0 && (
-                                <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">
-                                  {selectedCount} обрано
-                                </span>
-                              )}
-                            </span>
-                          </AccordionTrigger>
-                          <AccordionContent>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 pb-4">
-                              {dir.disciplines.map((disc: any) => (
-                                <label
-                                  key={disc.id}
-                                  className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                                >
-                                  <Checkbox
-                                    checked={preferredDisciplineIds.includes(disc.id)}
-                                    onCheckedChange={() => toggleDiscipline(disc.id)}
-                                    className="mt-1"
-                                  />
-                                  <span className="text-sm leading-none flex-1 peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    {disc.name}
+                {isExecutor && directions.length > 0 && (
+                  <div className="space-y-3 pt-4">
+                    <Label className="text-base font-semibold">Бажані дисципліни</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Оберіть предмети, з яких ви хочете отримувати замовлення.
+                    </p>
+                    <Accordion type="multiple" className="w-full border rounded-md px-4">
+                      {directions.map((dir, idx) => {
+                        const selectedCount = dir.disciplines.filter((d: any) => preferredDisciplineIds.includes(d.id)).length;
+                        return (
+                          <AccordionItem value={`item-${dir.id}`} key={dir.id} className={idx === directions.length - 1 ? "border-b-0" : ""}>
+                            <AccordionTrigger className="hover:no-underline">
+                              <span className="flex items-center gap-2">
+                                {dir.name}
+                                {selectedCount > 0 && (
+                                  <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">
+                                    {selectedCount} обрано
                                   </span>
-                                </label>
-                              ))}
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      );
-                    })}
-                  </Accordion>
+                                )}
+                              </span>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 pb-4">
+                                {dir.disciplines.map((disc: any) => (
+                                  <label
+                                    key={disc.id}
+                                    className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                                  >
+                                    <Checkbox
+                                      checked={preferredDisciplineIds.includes(disc.id)}
+                                      onCheckedChange={() => toggleDiscipline(disc.id)}
+                                      className="mt-1"
+                                    />
+                                    <span className="text-sm leading-none flex-1 peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                      {disc.name}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        );
+                      })}
+                    </Accordion>
+                  </div>
+                )}
+                
+                <div className="flex justify-end pt-4">
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Зберегти зміни
+                  </Button>
                 </div>
-              )}
-              
-              <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Зберегти зміни
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Відгуки */}
+          <ProfileReviews isExecutor={!!isExecutor} />
+        </div>
       </div>
     </div>
   );

@@ -32,5 +32,10 @@ export const accountService = {
   async updateProfile(data: any) {
     const response = await api.put('/Account/profile', data);
     return response.data;
+  },
+
+  async getMyReviews() {
+    const response = await api.get('/Account/reviews');
+    return response.data;
   }
 };

@@ -10,7 +10,8 @@ import {
   User, PlusCircle, FileText, Star, Wallet, HelpCircle, Search,
   ChevronLeft, ChevronRight, LogOut, ShoppingBag, Briefcase,
   Clock, Archive
-} from 'lucide-react'; // Додав ShoppingBag та Briefcase
+} from 'lucide-react';
+
 import {
   Tooltip,
   TooltipContent,
