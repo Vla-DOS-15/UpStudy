@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { format, differenceInDays } from 'date-fns';
 import { uk } from 'date-fns/locale';
-import { MessageSquare, Clock, FileText, CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { MessageSquare, Clock, FileText, CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp, Download, LayoutList, List } from 'lucide-react';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 import { orderService } from '@/services/orderService';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
@@ -46,33 +47,98 @@ interface OrderDetails extends OrderPreview {
   attachments: Attachment[];
 }
 
+import { PAGE_SIZE } from '@/lib/constants';
+import { generatePagination } from '@/lib/utils';
+
 export default function ActiveOrdersPage() {
   const router = useRouter();
   const { user } = useAuth();
+  
   const [orders, setOrders] = useState<OrderPreview[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('in-progress');
+  
+  // Pagination & Infinite Scroll states
+  const [viewMode, setViewMode] = useState<'pagination' | 'infinite'>('pagination');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  
+  const loaderRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async () => {
-    try {
-      setIsLoading(true);
-      const data = await orderService.getMyOrders();
-      setOrders(data);
-    } catch (error) {
-      console.error(error);
-      toast.error('Не вдалося завантажити активні замовлення');
-    } finally {
-      setIsLoading(false);
+  // Helper to map tab to status
+  const getStatusForTab = (tab: string) => {
+    switch (tab) {
+      case 'in-progress': return 'InProgress';
+      case 'review': return 'Review';
+      case 'completed': return 'Completed';
+      default: return 'InProgress';
     }
   };
 
-  // Фільтрація по статусах
-  const inProgressOrders = orders.filter(o => o.status === 'InProgress');
-  const reviewOrders = orders.filter(o => o.status === 'Review');
-  const completedOrders = orders.filter(o => o.status === 'Completed');
+  const fetchOrders = async (pageNum: number, isLoadMore = false) => {
+    try {
+      if (isLoadMore) {
+        setIsLoadingMore(true);
+      } else {
+        setIsLoading(true);
+      }
+      
+      const status = getStatusForTab(activeTab);
+      const data = await orderService.getMyOrders({ page: pageNum, pageSize: PAGE_SIZE, status });
+      
+      setTotalPages(Math.ceil(data.totalCount / data.pageSize));
+      setHasMore(pageNum * data.pageSize < data.totalCount);
+      
+      if (isLoadMore) {
+        setOrders(prev => [...prev, ...data.items]);
+      } else {
+        setOrders(data.items);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Не вдалося завантажити замовлення');
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    setPage(1);
+    fetchOrders(1, false);
+  }, [activeTab, viewMode]);
+  
+  useEffect(() => {
+    if (page > 1) {
+      fetchOrders(page, viewMode === 'infinite');
+    }
+  }, [page]);
+
+  // Infinite Scroll Observer
+  useEffect(() => {
+    if (viewMode !== 'infinite' || isLoading || isLoadingMore || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setPage(prev => prev + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loaderRef.current) {
+      observer.observe(loaderRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [viewMode, isLoading, isLoadingMore, hasMore]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+  };
 
   const isClient = user?.roles?.includes('Client');
 
@@ -254,49 +320,115 @@ export default function ActiveOrdersPage() {
     </div>
   );
 
-  if (isLoading) {
+  const renderOrdersList = () => {
+    if (isLoading && orders.length === 0) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (orders.length === 0) {
+      return <EmptyState text="Замовлень не знайдено" />;
+    }
+
     return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="space-y-4">
+        {orders.map(order => <OrderCard key={order.id} order={order} />)}
+        
+        {/* Infinite Scroll Loader */}
+        {viewMode === 'infinite' && hasMore && (
+          <div ref={loaderRef} className="flex justify-center p-4">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        )}
+        
+        {/* Pagination Controls */}
+        {viewMode === 'pagination' && totalPages > 1 && (
+          <div className="mt-8">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    className={page === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                  />
+                </PaginationItem>
+                
+                {generatePagination(page, totalPages).map((p, i) => (
+                  <PaginationItem key={i}>
+                    {p === '...' ? (
+                      <PaginationEllipsis />
+                    ) : (
+                      <PaginationLink
+                        isActive={page === p}
+                        onClick={() => setPage(p as number)}
+                        className="cursor-pointer"
+                      >
+                        {p}
+                      </PaginationLink>
+                    )}
+                  </PaginationItem>
+                ))}
+                
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    className={page === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
       </div>
     );
-  }
+  };
 
   return (
     <div className="space-y-6 container max-w-5xl mx-auto py-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">В роботі</h2>
+        
+        {/* View Mode Toggle */}
+        <div className="flex items-center border rounded-md bg-muted/30 p-1">
+          <Button
+            variant={viewMode === 'pagination' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('pagination')}
+            className="text-xs h-8 px-3 flex items-center gap-1"
+          >
+            <List className="w-4 h-4" /> Сторінки
+          </Button>
+          <Button
+            variant={viewMode === 'infinite' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('infinite')}
+            className="text-xs h-8 px-3 flex items-center gap-1"
+          >
+            <LayoutList className="w-4 h-4" /> Стрічка
+          </Button>
+        </div>
       </div>
 
-      <Tabs defaultValue="in-progress" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-[400px]">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <TabsList className="h-auto w-full flex-wrap justify-start sm:w-auto">
           <TabsTrigger value="in-progress">Виконуються</TabsTrigger>
           <TabsTrigger value="review">На перевірці</TabsTrigger>
           <TabsTrigger value="completed">Завершені</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="in-progress" className="mt-6 space-y-4">
-          {inProgressOrders.length > 0 ? (
-            inProgressOrders.map(order => <OrderCard key={order.id} order={order} />)
-          ) : (
-            <EmptyState text="Немає активних замовлень в роботі" />
-          )}
+        <TabsContent value="in-progress" className="mt-6">
+          {renderOrdersList()}
         </TabsContent>
 
-        <TabsContent value="review" className="mt-6 space-y-4">
-          {reviewOrders.length > 0 ? (
-            reviewOrders.map(order => <OrderCard key={order.id} order={order} />)
-          ) : (
-            <EmptyState text="Немає замовлень на перевірці" />
-          )}
+        <TabsContent value="review" className="mt-6">
+          {renderOrdersList()}
         </TabsContent>
 
-        <TabsContent value="completed" className="mt-6 space-y-4">
-          {completedOrders.length > 0 ? (
-            completedOrders.map(order => <OrderCard key={order.id} order={order} />)
-          ) : (
-            <EmptyState text="Історія виконаних робіт порожня" />
-          )}
+        <TabsContent value="completed" className="mt-6">
+          {renderOrdersList()}
         </TabsContent>
       </Tabs>
     </div>

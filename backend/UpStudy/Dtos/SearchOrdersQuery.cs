@@ -9,6 +9,8 @@ public class SearchOrdersQuery
     
     public decimal? MinPrice { get; set; }
     public decimal? MaxPrice { get; set; }
+    
+    public string? Status { get; set; } // Для фільтрації по статусу (напр. InProgress, Completed)
 
     // Пагінація
     public int Page { get; set; } = 1;

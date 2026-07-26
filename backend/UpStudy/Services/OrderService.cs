@@ -556,9 +556,9 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             };
     }
     
-    public async Task<List<OrderPreviewDto>> GetPendingOrdersAsync(string userId)
+    public async Task<PagedResult<OrderPreviewDto>> GetPendingOrdersAsync(string userId, SearchOrdersQuery query)
     {
-        return await _context.Orders
+        var dbQuery = _context.Orders
             .AsNoTracking()
             .Include(o => o.Discipline)
             .Include(o => o.WorkType)
@@ -566,8 +566,19 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             .Include(o => o.Proposals)
             .Where(o => o.Status == OrderStatus.New 
                         && o.ExecutorId == null 
-                        && o.Proposals.Any(p => p.ExecutorId == userId && p.Status == ProposalStatus.Pending))
+                        && o.Proposals.Any(p => p.ExecutorId == userId && p.Status == ProposalStatus.Pending));
+
+        if (!string.IsNullOrEmpty(query.Status) && Enum.TryParse<OrderStatus>(query.Status, true, out var statusEnum))
+        {
+            dbQuery = dbQuery.Where(o => o.Status == statusEnum);
+        }
+
+        var totalCount = await dbQuery.CountAsync();
+
+        var items = await dbQuery
             .OrderByDescending(o => o.CreatedAt)
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
             .Select(o => new OrderPreviewDto
             {
                 Id = o.Id,
@@ -587,11 +598,19 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 MyProposalId = o.Proposals.Where(p => p.ExecutorId == userId).Select(p => (Guid?)p.Id).FirstOrDefault()
             })
             .ToListAsync();
+
+        return new PagedResult<OrderPreviewDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            CurrentPage = query.Page,
+            PageSize = query.PageSize
+        };
     }
 
-    public async Task<List<OrderPreviewDto>> GetArchivedOrdersAsync(string userId)
+    public async Task<PagedResult<OrderPreviewDto>> GetArchivedOrdersAsync(string userId, SearchOrdersQuery query)
     {
-        return await _context.Orders
+        var dbQuery = _context.Orders
             .AsNoTracking()
             .Include(o => o.Discipline)
             .Include(o => o.WorkType)
@@ -599,8 +618,19 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             .Include(o => o.Proposals)
             .Where(o => o.Proposals.Any(p => p.ExecutorId == userId) && 
                         (o.Proposals.Any(p => p.ExecutorId == userId && p.Status == ProposalStatus.Rejected) || 
-                         (o.ExecutorId != null && o.ExecutorId != userId)))
+                         (o.ExecutorId != null && o.ExecutorId != userId)));
+
+        if (!string.IsNullOrEmpty(query.Status) && Enum.TryParse<OrderStatus>(query.Status, true, out var statusEnum))
+        {
+            dbQuery = dbQuery.Where(o => o.Status == statusEnum);
+        }
+
+        var totalCount = await dbQuery.CountAsync();
+
+        var items = await dbQuery
             .OrderByDescending(o => o.CreatedAt)
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
             .Select(o => new OrderPreviewDto
             {
                 Id = o.Id,
@@ -620,12 +650,20 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 MyProposalId = o.Proposals.Where(p => p.ExecutorId == userId).Select(p => (Guid?)p.Id).FirstOrDefault()
             })
             .ToListAsync();
+
+        return new PagedResult<OrderPreviewDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            CurrentPage = query.Page,
+            PageSize = query.PageSize
+        };
     }
     
     
-    public async Task<List<OrderPreviewDto>> GetUserOrdersAsync(string userId)
+    public async Task<PagedResult<OrderPreviewDto>> GetUserOrdersAsync(string userId, SearchOrdersQuery query)
     {
-        return await _context.Orders
+        var dbQuery = _context.Orders
             .AsNoTracking()
             .Include(o => o.Discipline)
             .Include(o => o.WorkType)
@@ -633,8 +671,19 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
             // 🔥 ГОЛОВНА ЛОГІКА:
             // Показуємо замовлення, якщо юзер його створив (ClientId)
             // АБО якщо юзер призначений виконавцем (ExecutorId)
-            .Where(o => o.ClientId == userId || o.ExecutorId == userId)
+            .Where(o => o.ClientId == userId || o.ExecutorId == userId);
+
+        if (!string.IsNullOrEmpty(query.Status) && Enum.TryParse<OrderStatus>(query.Status, true, out var statusEnum))
+        {
+            dbQuery = dbQuery.Where(o => o.Status == statusEnum);
+        }
+
+        var totalCount = await dbQuery.CountAsync();
+
+        var items = await dbQuery
             .OrderByDescending(o => o.CreatedAt) // Спочатку найновіші
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
             .Select(o => new OrderPreviewDto
             {
                 Id = o.Id,
@@ -652,9 +701,16 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 ExecutorId = o.ExecutorId,
                 HasMyProposal = o.ExecutorId == userId,
                 MyProposalId = null // Ми можемо не мати доступу до Proposals тут, але для UserOrders це зазвичай не потрібно для видалення
-
             })
             .ToListAsync();
+
+        return new PagedResult<OrderPreviewDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            CurrentPage = query.Page,
+            PageSize = query.PageSize
+        };
     }
 
     public async Task UploadCommissionReceiptAsync(Guid orderId, string clientId, IFormFile file)

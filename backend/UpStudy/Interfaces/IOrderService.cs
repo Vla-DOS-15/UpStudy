@@ -16,8 +16,8 @@ public interface IOrderService
     Task LeaveReviewAsync(Guid orderId, string clientId, CreateReviewDto dto);
     
     Task<PagedResult<OrderPreviewDto>> SearchOrdersAsync(SearchOrdersQuery query, string? currentUserId);
-    Task<List<OrderPreviewDto>> GetPendingOrdersAsync(string userId);
-    Task<List<OrderPreviewDto>> GetArchivedOrdersAsync(string userId);
+    Task<PagedResult<OrderPreviewDto>> GetPendingOrdersAsync(string userId, SearchOrdersQuery query);
+    Task<PagedResult<OrderPreviewDto>> GetArchivedOrdersAsync(string userId, SearchOrdersQuery query);
 
     Task SubmitForReviewAsync(Guid orderId, string executorId);
     
@@ -28,5 +28,5 @@ public interface IOrderService
     Task RejectCommissionAsync(Guid orderId, string reason);
 
     Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId, string? currentUserId = null);
-    Task<List<OrderPreviewDto>> GetUserOrdersAsync(string userId);
+    Task<PagedResult<OrderPreviewDto>> GetUserOrdersAsync(string userId, SearchOrdersQuery query);
 }

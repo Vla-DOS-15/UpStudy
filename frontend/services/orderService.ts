@@ -89,8 +89,8 @@ export const orderService = {
     return response.data;
   },
 
-  async getMyOrders() {
-    const response = await api.get('/Orders/my-orders');
+  async getMyOrders(query?: any) {
+    const response = await api.get('/Orders/my-orders', { params: query });
     return response.data;
   },
 
@@ -109,13 +109,13 @@ export const orderService = {
     return response.data;
   },
 
-  async getPendingOrders() {
-    const response = await api.get('/Orders/executor/pending');
+  async getPendingOrders(query?: any) {
+    const response = await api.get('/Orders/executor/pending', { params: query });
     return response.data;
   },
 
-  async getArchivedOrders() {
-    const response = await api.get('/Orders/executor/archive');
+  async getArchivedOrders(query?: any) {
+    const response = await api.get('/Orders/executor/archive', { params: query });
     return response.data;
   },
 };

@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { PlusCircle, Search, Filter, RefreshCcw } from 'lucide-react';
+import { PlusCircle, Search, RefreshCcw, Loader2, LayoutList, List } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { dictionaryService, DictionaryItem } from '@/services/dictionaryService';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
+
+import { PAGE_SIZE } from '@/lib/constants';
+import { generatePagination } from '@/lib/utils';
 
 export default function OrdersPageClient() {
     const { user } = useAuth();
@@ -26,10 +30,12 @@ export default function OrdersPageClient() {
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Pagination
+    // Pagination & Infinite Scroll
+    const [viewMode, setViewMode] = useState<'pagination' | 'infinite'>('pagination');
     const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
     const [hasMore, setHasMore] = useState(false);
-    const PAGE_SIZE = 9;
+    const loaderRef = useRef<HTMLDivElement>(null);
 
     // Filters State
     const [disciplines, setDisciplines] = useState<DictionaryItem[]>([]);
@@ -47,11 +53,18 @@ export default function OrdersPageClient() {
     useEffect(() => {
         // Debounce fetch for filters
         const timer = setTimeout(() => {
-            fetchOrders(true); // Reset to page 1 on filter change
+            setPage(1);
+            fetchOrders(1, false);
         }, 500);
 
         return () => clearTimeout(timer);
-    }, [userRole, searchQuery, selectedDiscipline, selectedWorkType, minPrice, maxPrice]);
+    }, [userRole, searchQuery, selectedDiscipline, selectedWorkType, minPrice, maxPrice, activeTab, viewMode]);
+
+    useEffect(() => {
+        if (page > 1) {
+            fetchOrders(page, viewMode === 'infinite');
+        }
+    }, [page]);
 
     // Load Dictionaries
     useEffect(() => {
@@ -70,38 +83,36 @@ export default function OrdersPageClient() {
         loadDictionaries();
     }, []);
 
-    const fetchOrders = async (resetPage: boolean = false) => {
-        // Logic Validation inside fetch to prevent bad requests during auto-fetch
+    const fetchOrders = async (pageNum: number, isLoadMore = false) => {
+        // Logic Validation inside fetch to prevent bad requests
         if (minPrice && Number(minPrice) < 0) return;
         if (maxPrice && Number(maxPrice) < 0) return;
         if (minPrice && maxPrice && Number(maxPrice) < Number(minPrice)) return;
 
         try {
-            const currentPage = resetPage ? 1 : page;
-
-            if (resetPage) {
-                setIsLoading(true);
-                setPage(1);
-            } else {
+            if (isLoadMore) {
                 setIsLoadingMore(true);
+            } else {
+                setIsLoading(true);
             }
 
             let data;
 
             if (userRole === 'Client') {
-                // Клієнт бачить ТІЛЬКИ свої замовлення (поки що без пагінації на беку для my-orders? Припустимо там теж треба буде, але поки лишаємо як є)
-                data = await orderService.getMyOrders();
-                // Якщо getMyOrders повертає плоский масив, пагінація тут не спрацює без змін беку. 
-                // Але задача була про "багато завдань" -> це зазвичай про біржу (getAllOrders).
+                const status = activeTab !== 'all' ? activeTab : undefined;
+                data = await orderService.getMyOrders({
+                    page: pageNum,
+                    pageSize: PAGE_SIZE,
+                    status
+                });
             } else {
-                // Виконавець бачить всі замовлення (Біржа)
                 data = await orderService.getAllOrders({
                     search: searchQuery,
                     disciplineId: selectedDiscipline !== 'all' ? Number(selectedDiscipline) : undefined,
                     workTypeId: selectedWorkType !== 'all' ? Number(selectedWorkType) : undefined,
                     minPrice: minPrice ? Number(minPrice) : undefined,
                     maxPrice: maxPrice ? Number(maxPrice) : undefined,
-                    page: currentPage,
+                    page: pageNum,
                     pageSize: PAGE_SIZE
                 });
             }
@@ -109,24 +120,14 @@ export default function OrdersPageClient() {
             const newItems = Array.isArray(data) ? data : data.items || [];
             const totalCount = data.totalCount || 0;
 
-            if (resetPage) {
-                setOrders(newItems);
-            } else {
+            setTotalPages(Math.ceil(totalCount / PAGE_SIZE));
+            setHasMore(pageNum * PAGE_SIZE < totalCount);
+
+            if (isLoadMore) {
                 setOrders(prev => [...prev, ...newItems]);
-            }
-
-            // Client role usually returns all items in current my-orders implementation, strict pagination mostly for Executor exchange
-            if (userRole === 'Executor') {
-                setHasMore(newItems.length === PAGE_SIZE && orders.length + newItems.length < totalCount);
-                // Better logic: if we received full page, there MIGHT be more. 
-                // Or use totalCount if available. PagedResult has TotalCount.
-                // Correct logic with TotalCount:
-                const currentTotal = resetPage ? newItems.length : orders.length + newItems.length;
-                setHasMore(currentTotal < totalCount);
             } else {
-                setHasMore(false);
+                setOrders(newItems);
             }
-
         } catch (error) {
             console.error(error);
             toast.error('Не вдалося завантажити список замовлень');
@@ -136,87 +137,37 @@ export default function OrdersPageClient() {
         }
     };
 
+    // Infinite Scroll Observer
+    useEffect(() => {
+        if (viewMode !== 'infinite' || isLoading || isLoadingMore || !hasMore) return;
 
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setPage(prev => prev + 1);
+                }
+            },
+            { threshold: 0.1 }
+        );
 
-    // Better Approach: Trigger fetch when page changes, BUT filter changes reset page to 1.
-    // Let's decouple.
-    // Actually, simplest is to pass explicit page to fetch function.
-    // Re-writing fetchOrders to NOT rely on 'page' state for the request params but accept it.
+        if (loaderRef.current) {
+            observer.observe(loaderRef.current);
+        }
 
-    // RETRYING LOGIC IN NEXT ACTION... 
-    // Wait, I can't leave this comment in Code.
-    // I will use a ref or just update logic now.
-
-    // ...
-    // Let's go with: handleLoadMore calls setPage, and we add 'page' to the dependency array of a NEW useEffect?
-    // Or just merge into existing useEffect?
-    // If I add 'page' to the main useEffect dependencies:
-    //  - changing filter -> setPage(1) -> triggers effect -> fetchOrders(1). Good.
-    //  - clicking load more -> setPage(p+1) -> triggers effect -> fetchOrders(p+1). Good.
-    // BUT: I need to know if I should APPEND or REPLACE.
-    //  - if page === 1: REPLACE.
-    //  - if page > 1: APPEND.
-
-    // Logic:
-    // Remove manual fetchOrders calls. Rely mostly on Effect.
-    // Effect: [filters, page].
-    // Inside effect: if page === 1, replace. If page > 1, append.
-    // When filters change: setPage(1). 
-    // IMPORTANT: If filters change, we setPage(1). This triggers effect? 
-    // If page was 1, and we setPage(1), it does NOT trigger effect. So we need to handle "Same Page but Filters Changed".
-    // Better: Effect depends on [filters]. Inside: setPage(1). (This might verify loop if we add page to deps).
-
-    // Standard pattern:
-    // Effect 1: [filters]. Action: setPage(1). (Only if page != 1? If page is 1, we still need to fetch new filtered data).
-    // Actually, simpler: 
-    // fetchOrders(pageToFetch, shouldAppend).
-    // handleLoadMore -> fetchOrders(page + 1, true); setPage(prev => prev + 1).
-    // filtersChange -> fetchOrders(1, false); setPage(1).
-    // This avoids complex useEffect interactions.
-
-    // Implementation below uses this manual approach inside the multi-replace chunks.
-
+        return () => observer.disconnect();
+    }, [viewMode, isLoading, isLoadingMore, hasMore]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        fetchOrders(true);
-    };
-
-    const handleLoadMore = async () => {
-        const nextPage = page + 1;
-        setPage(nextPage);
-
-        // Manual fetch for next page
-        setIsLoadingMore(true);
-        try {
-            const data = await orderService.getAllOrders({
-                search: searchQuery,
-                disciplineId: selectedDiscipline !== 'all' ? Number(selectedDiscipline) : undefined,
-                workTypeId: selectedWorkType !== 'all' ? Number(selectedWorkType) : undefined,
-                minPrice: minPrice ? Number(minPrice) : undefined,
-                maxPrice: maxPrice ? Number(maxPrice) : undefined,
-                page: nextPage,
-                pageSize: PAGE_SIZE
-            });
-
-            const newItems = Array.isArray(data) ? data : data.items || [];
-
-            setOrders(prev => [...prev, ...newItems]);
-            setHasMore(orders.length + newItems.length < (data.totalCount || 0));
-
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setIsLoadingMore(false);
-        }
+        setPage(1);
+        fetchOrders(1, false);
     };
 
     return (
         <div className="space-y-8">
-
             {/* Хедер і Контроли */}
             <div className="flex flex-col gap-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-6">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b pb-6">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">
                             {userRole === 'Client' ? 'Мої замовлення' : 'Біржа замовлень'}
@@ -228,14 +179,36 @@ export default function OrdersPageClient() {
                         </p>
                     </div>
 
-                    {userRole === 'Client' && (
-                        <Button asChild className="shrink-0">
-                            <Link href="/dashboard/create-order">
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                Створити замовлення
-                            </Link>
-                        </Button>
-                    )}
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                        {/* View Mode Toggle */}
+                        <div className="flex items-center border rounded-md bg-muted/30 p-1">
+                            <Button
+                                variant={viewMode === 'pagination' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setViewMode('pagination')}
+                                className="text-xs h-8 px-3 flex items-center gap-1"
+                            >
+                                <List className="w-4 h-4" /> Сторінки
+                            </Button>
+                            <Button
+                                variant={viewMode === 'infinite' ? 'secondary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setViewMode('infinite')}
+                                className="text-xs h-8 px-3 flex items-center gap-1"
+                            >
+                                <LayoutList className="w-4 h-4" /> Стрічка
+                            </Button>
+                        </div>
+
+                        {userRole === 'Client' && (
+                            <Button asChild className="shrink-0">
+                                <Link href="/dashboard/create-order">
+                                    <PlusCircle className="mr-2 h-4 w-4" />
+                                    Створити замовлення
+                                </Link>
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Пошук для Виконавця */}
@@ -290,14 +263,6 @@ export default function OrdersPageClient() {
                                     setMaxPrice('');
                                     setSelectedDiscipline('all');
                                     setSelectedWorkType('all');
-                                    // Trigger fetch immediately after resetting state requires a useEffect or manual call with cleared params.
-                                    // For simplicity, we just clear UI and user hits Search, or we call fetchOrders() but logic needs to read from state which might not be updated yet.
-                                    // Let's just clear and call fetch with cleared params manually:
-                                    // Actually, let's keep it simple: clear inputs, user clicks search.
-                                    // Or better: auto-fetch on reset?
-                                    // Let's simply reset state and call fetch with empty object logic if we extract fetch logic.
-                                    // For now, reload page or just reset state.
-                                    // Let's just reset state.
                                 }} title="Скинути">
                                     <RefreshCcw className="h-4 w-4" />
                                 </Button>
@@ -339,58 +304,50 @@ export default function OrdersPageClient() {
             </div>
 
             {/* Список */}
-            {isLoading ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-6">
-                    {[1, 2, 3].map(i => (
-                        <div key={i} className="h-64 rounded-xl bg-muted/20 animate-pulse" />
-                    ))}
-                </div>
-            ) : (
-                <div className="flex flex-col gap-6">
-                    {userRole === 'Client' && (
-                        <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full">
-                            <TabsList className="w-full sm:w-auto overflow-x-auto justify-start">
-                                <TabsTrigger value="all">Всі замовлення</TabsTrigger>
-                                <TabsTrigger value="New">Нові</TabsTrigger>
-                                <TabsTrigger value="InProgress">В процесі</TabsTrigger>
-                                <TabsTrigger value="Review">На перевірці</TabsTrigger>
-                                <TabsTrigger value="Completed">Завершені</TabsTrigger>
-                            </TabsList>
-                        </Tabs>
-                    )}
+            <div className="flex flex-col gap-6">
+                {userRole === 'Client' && (
+                    <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <TabsList className="h-auto w-full flex-wrap justify-start sm:w-auto">
+                            <TabsTrigger value="all">Всі</TabsTrigger>
+                            <TabsTrigger value="New">Нові</TabsTrigger>
+                            <TabsTrigger value="InProgress">В процесі</TabsTrigger>
+                            <TabsTrigger value="Review">На перевірці</TabsTrigger>
+                            <TabsTrigger value="Completed">Завершені</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+                )}
 
-                    {(() => {
-                        const filteredOrders = userRole === 'Client'
-                            ? orders.filter(o => activeTab === 'all' || o.status === activeTab)
-                            : orders;
-
-                        if (filteredOrders.length === 0) {
-                            return (
-                                <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed min-h-[300px]">
-                                    <div className="bg-muted/50 p-4 rounded-full mb-4">
-                                        <Search className="h-10 w-10 text-muted-foreground" />
-                                    </div>
-                                    <h3 className="text-xl font-semibold mb-2">
-                                        {userRole === 'Client' ? 'У вас ще немає замовлень' : 'Замовлень не знайдено'}
-                                    </h3>
-                                    <p className="text-muted-foreground max-w-sm mx-auto mb-6">
-                                        {userRole === 'Client'
-                                            ? "Створіть своє перше замовлення, щоб знайти виконавців."
-                                            : "Спробуйте змінити параметри пошуку або завітайте пізніше."}
-                                    </p>
-                                    {userRole === 'Client' && (
-                                        <Button asChild variant="outline">
-                                            <Link href="/dashboard/create-order">Створити перше замовлення</Link>
-                                        </Button>
-                                    )}
-                                </Card>
-                            );
-                        }
-
-                        return (
+                {isLoading && orders.length === 0 ? (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-6">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="h-64 rounded-xl bg-muted/20 animate-pulse" />
+                        ))}
+                    </div>
+                ) : (
+                    <>
+                        {orders.length === 0 ? (
+                            <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed min-h-[300px]">
+                                <div className="bg-muted/50 p-4 rounded-full mb-4">
+                                    <Search className="h-10 w-10 text-muted-foreground" />
+                                </div>
+                                <h3 className="text-xl font-semibold mb-2">
+                                    {userRole === 'Client' ? 'У вас ще немає замовлень' : 'Замовлень не знайдено'}
+                                </h3>
+                                <p className="text-muted-foreground max-w-sm mx-auto mb-6">
+                                    {userRole === 'Client'
+                                        ? "Створіть своє перше замовлення, щоб знайти виконавців."
+                                        : "Спробуйте змінити параметри пошуку або завітайте пізніше."}
+                                </p>
+                                {userRole === 'Client' && (
+                                    <Button asChild variant="outline">
+                                        <Link href="/dashboard/create-order">Створити перше замовлення</Link>
+                                    </Button>
+                                )}
+                            </Card>
+                        ) : (
                             <div className="flex flex-col gap-8">
                                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-6 items-start">
-                                    {filteredOrders.map((order) => (
+                                    {orders.map((order) => (
                                         <OrderListItem
                                             key={order.id}
                                             orderPreview={order}
@@ -399,31 +356,56 @@ export default function OrdersPageClient() {
                                     ))}
                                 </div>
 
-                                {hasMore && (
-                                    <div className="flex justify-center pb-8">
-                                        <Button
-                                            variant="outline"
-                                            size="lg"
-                                            onClick={handleLoadMore}
-                                            disabled={isLoadingMore}
-                                            className="min-w-[200px]"
-                                        >
-                                            {isLoadingMore ? (
-                                                <>
-                                                    <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />
-                                                    Завантаження...
-                                                </>
-                                            ) : (
-                                                'Завантажити ще'
-                                            )}
-                                        </Button>
+                                {/* Infinite Scroll Loader */}
+                                {viewMode === 'infinite' && hasMore && (
+                                    <div ref={loaderRef} className="flex justify-center p-4">
+                                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                    </div>
+                                )}
+
+                                {/* Pagination Controls */}
+                                {viewMode === 'pagination' && totalPages > 1 && (
+                                    <div className="mt-8 pb-8">
+                                        <Pagination>
+                                            <PaginationContent>
+                                                <PaginationItem>
+                                                    <PaginationPrevious
+                                                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                                                        className={page === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                                    />
+                                                </PaginationItem>
+
+                                                {generatePagination(page, totalPages).map((p, i) => (
+                                                    <PaginationItem key={i}>
+                                                        {p === '...' ? (
+                                                            <PaginationEllipsis />
+                                                        ) : (
+                                                            <PaginationLink
+                                                                isActive={page === p}
+                                                                onClick={() => setPage(p as number)}
+                                                                className="cursor-pointer"
+                                                            >
+                                                                {p}
+                                                            </PaginationLink>
+                                                        )}
+                                                    </PaginationItem>
+                                                ))}
+
+                                                <PaginationItem>
+                                                    <PaginationNext
+                                                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                                        className={page === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                                    />
+                                                </PaginationItem>
+                                            </PaginationContent>
+                                        </Pagination>
                                     </div>
                                 )}
                             </div>
-                        );
-                    })()}
-                </div>
-            )}
+                        )}
+                    </>
+                )}
+            </div>
         </div>
     );
 }

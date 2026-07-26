@@ -307,14 +307,14 @@ public class OrdersController : ControllerBase
     
     [HttpGet("my-orders")]
     [Authorize]
-    public async Task<IActionResult> GetMyOrders()
+    public async Task<IActionResult> GetMyOrders([FromQuery] SearchOrdersQuery query)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
         try
         {
-            var orders = await _orderService.GetUserOrdersAsync(userId);
+            var orders = await _orderService.GetUserOrdersAsync(userId, query);
             return Ok(orders);
         }
         catch (Exception ex)
@@ -325,14 +325,14 @@ public class OrdersController : ControllerBase
     
     [HttpGet("executor/pending")]
     [Authorize]
-    public async Task<IActionResult> GetExecutorPendingOrders()
+    public async Task<IActionResult> GetExecutorPendingOrders([FromQuery] SearchOrdersQuery query)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
         try
         {
-            var orders = await _orderService.GetPendingOrdersAsync(userId);
+            var orders = await _orderService.GetPendingOrdersAsync(userId, query);
             return Ok(orders);
         }
         catch (Exception ex)
@@ -343,14 +343,14 @@ public class OrdersController : ControllerBase
 
     [HttpGet("executor/archive")]
     [Authorize]
-    public async Task<IActionResult> GetExecutorArchivedOrders()
+    public async Task<IActionResult> GetExecutorArchivedOrders([FromQuery] SearchOrdersQuery query)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
         try
         {
-            var orders = await _orderService.GetArchivedOrdersAsync(userId);
+            var orders = await _orderService.GetArchivedOrdersAsync(userId, query);
             return Ok(orders);
         }
         catch (Exception ex)
