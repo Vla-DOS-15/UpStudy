@@ -14,4 +14,6 @@ public interface IChatService
     Task SendSystemMessageAsync(Guid orderId, string text); // Для виклику з OrderService
     Task<DateTime> GetUserLastActiveAsync(string userId);
     Task<List<ChatOverviewDto>> GetUserChatsAsync(string userId);
+    Task<int> GetTotalUnreadCountAsync(string userId);
+    Task MarkChatAsReadAsync(Guid chatId, string userId);
 }

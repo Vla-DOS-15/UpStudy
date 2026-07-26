@@ -13,6 +13,7 @@ export interface ChatAttachmentDto {
 
 export interface ChatMessageDto {
     id: string;
+    chatId: string;
     text: string;
     sentAt: string;
     isSystem: boolean;
@@ -82,6 +83,14 @@ class ChatService {
         this.connection?.off("ReceiveMessage", callback);
     }
 
+    public onUnreadCountUpdated(callback: () => void) {
+        this.connection?.on("UnreadCountUpdated", callback);
+    }
+
+    public offUnreadCountUpdated(callback: () => void) {
+        this.connection?.off("UnreadCountUpdated", callback);
+    }
+
     // --- API METHODS ---
 
     public async initChat(orderId: string, candidateId?: string): Promise<{ chatId: string }> {
@@ -94,13 +103,20 @@ class ChatService {
         return response.data;
     }
 
-    // Legacy (Deprecated) - keeping for compatibility during migration if strictly needed, 
-    // but better to break to find usages.
     public async getMessages(orderId: string, candidateId?: string): Promise<ChatMessageDto[]> {
         // Fallback to old behavior or throw
         const params = candidateId ? { candidateId } : {};
         const response = await axios.get(`${this.apiUrl}/chat/${orderId}`, { ...this.getHeaders(), params });
         return response.data;
+    }
+
+    public async getTotalUnreadCount(): Promise<number> {
+        const response = await axios.get(`${this.apiUrl}/chat/unread-count`, this.getHeaders());
+        return response.data.count;
+    }
+
+    public async markAsRead(chatId: string): Promise<void> {
+        await axios.post(`${this.apiUrl}/chat/room/${chatId}/read`, {}, this.getHeaders());
     }
 
     public async sendMessage(chatId: string, text: string): Promise<ChatMessageDto> {

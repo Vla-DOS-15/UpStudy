@@ -10,6 +10,7 @@ public class ChatMessage
     public DateTime SentAt { get; set; } = DateTime.UtcNow;
     
     public bool IsSystem { get; set; } = false; 
+    public bool IsRead { get; set; } = false;
 
     public string SenderId { get; set; } = string.Empty;
     public AppUser Sender { get; set; } = null!;

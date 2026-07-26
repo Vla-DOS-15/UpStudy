@@ -160,4 +160,38 @@ public class ChatController : ControllerBase
             return StatusCode(500, ex.Message);
         }
     }
+
+    [HttpGet("unread-count")]
+    public async Task<IActionResult> GetUnreadCount()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        
+        try
+        {
+            var count = await _chatService.GetTotalUnreadCountAsync(userId);
+            return Ok(new { count });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
+
+    [HttpPost("room/{chatId}/read")]
+    public async Task<IActionResult> MarkChatAsRead(Guid chatId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        try
+        {
+            await _chatService.MarkChatAsReadAsync(chatId, userId);
+            return Ok();
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ex.Message);
+        }
+    }
 }

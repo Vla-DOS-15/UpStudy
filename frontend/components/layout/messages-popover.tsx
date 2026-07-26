@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,8 @@ import { useAuth } from '@/context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { uk } from 'date-fns/locale';
 import api from '@/lib/axios';
+import { chatService, ChatMessageDto } from '@/services/chatService';
+import Cookies from 'js-cookie';
 
 interface ChatOverview {
   chatId: string;
@@ -22,11 +24,66 @@ interface ChatOverview {
   unreadCount: number;
 }
 
+import { usePathname } from 'next/navigation';
+
 export function MessagesPopover() {
   const { user } = useAuth();
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
   const [chats, setChats] = useState<ChatOverview[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [globalUnreadCount, setGlobalUnreadCount] = useState(0);
+
+  // Initial fetch of unread count
+  useEffect(() => {
+    if (user) {
+      chatService.getTotalUnreadCount().then(setGlobalUnreadCount).catch(console.error);
+    }
+  }, [user]);
+
+  // Listen to new messages from SignalR
+  useEffect(() => {
+    if (!user) return;
+    
+    const token = Cookies.get("accessToken");
+    if (token) {
+        chatService.startConnection(token).catch(console.error);
+    }
+
+    const handleNewMessage = (msg: ChatMessageDto) => {
+      // Prevent flicker: if we are already in this chat, the ChatWindow will instantly mark it as read.
+      if (msg && msg.chatId && pathnameRef.current === `/dashboard/chat/${msg.chatId}`) {
+        return; 
+      }
+      
+      // Refresh global count when a new message arrives
+      chatService.getTotalUnreadCount().then(setGlobalUnreadCount).catch(console.error);
+      if (isOpen) {
+        fetchChats(); // Refresh chat list if popover is open
+      }
+    };
+
+    const handleUnreadUpdate = () => {
+      chatService.getTotalUnreadCount().then(setGlobalUnreadCount).catch(console.error);
+      if (isOpen) fetchChats();
+    };
+
+    chatService.onMessageReceived(handleNewMessage);
+    chatService.onUnreadCountUpdated(handleUnreadUpdate);
+
+    // Note: We don't stop the connection on unmount here because we want it to stay alive 
+    // across navigation, or let it die if the user logs out.
+    return () => {
+      chatService.offMessageReceived(handleNewMessage);
+      chatService.offUnreadCountUpdated(handleUnreadUpdate);
+    };
+  }, [user, isOpen]);
 
   useEffect(() => {
     if (isOpen && user) {
@@ -53,7 +110,11 @@ export function MessagesPopover() {
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <MessageSquare className="h-5 w-5" />
-          {/* Here we could show unread count if we had it globally */}
+          {globalUnreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+              {globalUnreadCount > 99 ? '99+' : globalUnreadCount}
+            </span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
