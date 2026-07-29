@@ -87,6 +87,19 @@ public class OrdersController : ControllerBase
         return Ok(orderDto);
     }
     
+    [HttpPost("{id}/view")]
+    [Authorize]
+    public async Task<IActionResult> RecordView(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        // Атомарний Upsert для перегляду та оновлення лічильника в Orders
+        await _orderService.RecordOrderViewAsync(id, userId);
+
+        return Ok();
+    }
+    
     // --- 2.1 PUT: Редагування замовлення ---
     [HttpPut("{id}")]
     [Authorize]

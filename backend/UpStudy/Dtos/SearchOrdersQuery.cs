@@ -1,4 +1,4 @@
-namespace UpStudy.Dtos;
+1   'namespace UpStudy.Dtos;
 
 public class SearchOrdersQuery
 {
@@ -41,6 +41,8 @@ public class OrderPreviewDto
     // Індикатор для виконавців, щоб знати статус власної ставки
     public bool HasMyProposal { get; set; }
     public Guid? MyProposalId { get; set; }
+    
+    public int ViewsCount { get; set; }
 }
 
 // Обгортка для пагінації

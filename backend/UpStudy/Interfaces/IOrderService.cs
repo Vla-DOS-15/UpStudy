@@ -29,4 +29,6 @@ public interface IOrderService
 
     Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId, string? currentUserId = null);
     Task<PagedResult<OrderPreviewDto>> GetUserOrdersAsync(string userId, SearchOrdersQuery query);
+    
+    Task RecordOrderViewAsync(Guid orderId, string userId);
 }

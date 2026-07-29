@@ -26,8 +26,9 @@ public class Order
     public bool IsNegotiable { get; set; }
     public decimal? Price { get; set; }
     
-    // Ціна роботи (те, що отримає виконавець на карту)
     public decimal ExecutorPrice { get; set; }
+    
+    public int ViewsCount { get; set; } = 0;
 
     // Комісія платформи (те, що клієнт платить через WayForPay/LiqPay)
     public decimal PlatformCommission { get; set; }
@@ -64,6 +65,7 @@ public class Order
     // Навігація
     public List<OrderProposal> Proposals { get; set; } = new();
     public ICollection<Chat> Chats { get; set; } = new List<Chat>(); 
+    public ICollection<OrderView> Views { get; set; } = new List<OrderView>();
     public Review? Review { get; set; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)

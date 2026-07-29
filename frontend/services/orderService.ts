@@ -68,8 +68,13 @@ export const orderService = {
     return response.data;
   },
 
-  async leaveReview(id: string, data: { rating: number; text: string }) {
-    const response = await api.post(`/Orders/${id}/review`, data);
+  async leaveReview(orderId: string, reviewData: { rating: number; text?: string }) {
+    const response = await api.post(`/orders/${orderId}/review`, reviewData);
+    return response.data;
+  },
+
+  async recordView(orderId: string) {
+    const response = await api.post(`/orders/${orderId}/view`);
     return response.data;
   },
 

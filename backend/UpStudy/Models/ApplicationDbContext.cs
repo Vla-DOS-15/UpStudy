@@ -19,6 +19,7 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
     public DbSet<OrderAttachment> OrderAttachments { get; set; }
     public DbSet<ChatAttachment> ChatAttachments { get; set; }
     public DbSet<DirectPaymentRequest> DirectPaymentRequests { get; set; }
+    public DbSet<OrderView> OrderViews { get; set; }
     
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
     
@@ -89,6 +90,19 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
             .HasOne(o => o.Review)
             .WithOne(r => r.Order)
             .HasForeignKey<Review>(r => r.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Перегляди замовлень
+        builder.Entity<OrderView>()
+            .HasOne(v => v.Order)
+            .WithMany(o => o.Views)
+            .HasForeignKey(v => v.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+            
+        builder.Entity<OrderView>()
+            .HasOne(v => v.Executor)
+            .WithMany()
+            .HasForeignKey(v => v.ExecutorId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // --- Chat Configuration ---

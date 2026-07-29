@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { uk } from 'date-fns/locale';
@@ -82,6 +82,28 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [viewed, setViewed] = useState(false);
+
+  useEffect(() => {
+    // Рахуємо перегляди тільки для виконавців і тільки один раз
+    if (userRole !== 'Executor' || viewed || !orderPreview.id) return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !viewed) {
+        orderService.recordView(orderPreview.id).catch(console.error);
+        setViewed(true);
+        observer.disconnect();
+      }
+    }, { threshold: 0.5 }); // Картка має бути видимою хоча б на 50%
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [orderPreview.id, viewed, userRole]);
 
   useEffect(() => {
     let isMounted = true;
@@ -350,7 +372,7 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
   );
 
   return (
-    <Card className="border shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col h-full bg-card group p-0 gap-0 overflow-hidden">
+    <Card ref={cardRef} className="border shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col h-full bg-card group p-0 gap-0 overflow-hidden">
 
       {/* --- TABS --- */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">

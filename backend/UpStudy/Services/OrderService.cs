@@ -413,6 +413,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
                 ClientId = o.ClientId,
                 ExecutorId = o.ExecutorId,
+                ViewsCount = o.ViewsCount,
                 HasMyProposal = false, // Because they are filtered out
                 MyProposalId = null
             })
@@ -594,6 +595,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
                 ClientId = o.ClientId,
                 ExecutorId = o.ExecutorId,
+                ViewsCount = o.ViewsCount,
                 HasMyProposal = true,
                 MyProposalId = o.Proposals.Where(p => p.ExecutorId == userId).Select(p => (Guid?)p.Id).FirstOrDefault()
             })
@@ -646,6 +648,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
                 ClientId = o.ClientId,
                 ExecutorId = o.ExecutorId,
+                ViewsCount = o.ViewsCount,
                 HasMyProposal = true,
                 MyProposalId = o.Proposals.Where(p => p.ExecutorId == userId).Select(p => (Guid?)p.Id).FirstOrDefault()
             })
@@ -699,6 +702,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
                 ClientName = $"{o.Client.FirstName} {o.Client.LastName}",
                 ClientId = o.ClientId,
                 ExecutorId = o.ExecutorId,
+                ViewsCount = o.ViewsCount,
                 HasMyProposal = o.ExecutorId == userId,
                 MyProposalId = null // Ми можемо не мати доступу до Proposals тут, але для UserOrders це зазвичай не потрібно для видалення
             })
@@ -789,5 +793,25 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
 
         await _context.SaveChangesAsync();
         await _chatService.SendSystemMessageAsync(order.Id, $"Оплату комісії відхилено. Причина: {reason}. Будь ласка, завантажте коректну квитанцію.");
+    }
+    
+    public async Task RecordOrderViewAsync(Guid orderId, string userId)
+    {
+        var order = await _context.Orders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == orderId);
+        if (order == null || order.ClientId == userId)
+            return; // Не рахуємо перегляди самого клієнта або для неіснуючих замовлень
+
+        await _context.Database.ExecuteSqlRawAsync(
+            @"WITH inserted AS (
+                INSERT INTO ""OrderViews"" (""OrderId"", ""ExecutorId"", ""ViewedAt"") 
+                VALUES ({0}, {1}, NOW()) 
+                ON CONFLICT (""OrderId"", ""ExecutorId"") DO NOTHING
+                RETURNING 1
+            )
+            UPDATE ""Orders"" 
+            SET ""ViewsCount"" = ""ViewsCount"" + 1 
+            WHERE ""Id"" = {0} AND EXISTS (SELECT 1 FROM inserted);",
+            orderId, userId
+        );
     }
 }
