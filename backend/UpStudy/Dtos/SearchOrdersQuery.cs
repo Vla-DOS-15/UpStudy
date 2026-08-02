@@ -1,4 +1,4 @@
-1   'namespace UpStudy.Dtos;
+namespace UpStudy.Dtos;
 
 public class SearchOrdersQuery
 {
