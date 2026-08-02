@@ -46,7 +46,7 @@ public class AuthController : ControllerBase
     [HttpPost("google-login")]
     public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginDto model)
     {
-        var result = await _authService.GoogleLoginAsync(model.IdToken);
+        var result = await _authService.GoogleLoginAsync(model);
         
         if (!result.IsSuccess)
             return BadRequest(result.Message);

@@ -12,13 +12,14 @@ import { getErrorMessage } from "@/lib/utils";
 
 interface RegisterFormProps {
   onSuccess?: () => void;
+  role: 'Client' | 'Executor';
+  setRole: (role: 'Client' | 'Executor') => void;
 }
 
-export function RegisterForm({ onSuccess }: RegisterFormProps) {
+export function RegisterForm({ onSuccess, role, setRole }: RegisterFormProps) {
   const { register, isLoading } = useAuth();
   const router = useRouter();
-  const [role, setRole] = useState<'Client' | 'Executor'>('Client');
-  
+
   const [formData, setFormData] = useState({
     userName: '',
     firstName: '',
@@ -37,7 +38,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (formData.password !== formData.confirmPassword) {
       toast.error("Помилка", { description: "Паролі не співпадають" });
       return;
@@ -57,21 +58,21 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
       // Якщо тут буде помилка, AuthContext викине exception і ми підемо в catch
       await register(submitData);
-      
+
       toast.success("Акаунт створено!");
       if (onSuccess) onSuccess();
 
       if (role === 'Executor') {
-         router.push('/dashboard/verification');
+        router.push('/dashboard/verification');
       } else {
-         router.push('/dashboard');
+        router.push('/dashboard');
       }
-      
+
     } catch (error: any) {
-        const message = getErrorMessage(error);
-        toast.error("Помилка реєстрації", { 
-           description: message 
-        });
+      const message = getErrorMessage(error);
+      toast.error("Помилка реєстрації", {
+        description: message
+      });
     }
   };
 
@@ -82,24 +83,22 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         <button
           type="button"
           onClick={() => setRole('Client')}
-          className={`flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${
-            role === 'Client' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${role === 'Client' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <User className="w-4 h-4" /> Замовник
         </button>
         <button
           type="button"
           onClick={() => setRole('Executor')}
-          className={`flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${
-            role === 'Executor' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${role === 'Executor' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <Briefcase className="w-4 h-4" /> Виконавець
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3">
         {/* Інпути ... */}
         <div className="space-y-2">
           <Label htmlFor="userName">Юзернейм</Label>
@@ -107,8 +106,8 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         </div>
 
         {role === 'Executor' && (
-          <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="firstName">Ім'я</Label>
                 <Input id="firstName" placeholder="Іван" value={formData.firstName} onChange={handleChange} required />
@@ -118,7 +117,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
                 <Input id="lastName" placeholder="Петренко" value={formData.lastName} onChange={handleChange} required />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="phoneNumber">Номер телефону</Label>
                 <Input id="phoneNumber" placeholder="+380..." value={formData.phoneNumber} onChange={handleChange} required />
@@ -136,7 +135,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
           <Input id="email" type="email" placeholder="mail@example.com" value={formData.email} onChange={handleChange} required />
         </div>
 
-        <div className="grid gap-4">
+        <div className="grid gap-3">
           <div className="space-y-2">
             <Label htmlFor="password">Пароль</Label>
             <Input id="password" type="password" value={formData.password} onChange={handleChange} required minLength={6} />
@@ -146,7 +145,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
             <Input id="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleChange} required minLength={6} />
           </div>
         </div>
-        
+
         <Button className="w-full" type="submit" disabled={isLoading}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {role === 'Executor' ? 'Стати виконавцем' : 'Зареєструватись'}

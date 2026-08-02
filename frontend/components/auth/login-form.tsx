@@ -26,45 +26,47 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       toast.success("Успіх!", { description: "З поверненням!" });
       if (onSuccess) onSuccess();
     } catch (error) {
-       const message = getErrorMessage(error);
-       toast.error("Помилка входу", { description: message });
+      const message = getErrorMessage(error);
+      toast.error("Помилка входу", { description: message });
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 py-4">
-      {/* ... інпути без змін ... */}
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input 
-          id="email" 
-          type="email" 
-          placeholder="student@example.com" 
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="password">Пароль</Label>
-          <Link href="/forgot-password" className="text-sm text-primary hover:underline">
-            Забули пароль?
-          </Link>
+    <div className="space-y-4 py-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* ... інпути без змін ... */}
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="student@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
         </div>
-        <Input 
-          id="password" 
-          type="password" 
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-      </div>
-      
-      <Button className="w-full" type="submit" disabled={isLoading}>
-        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Увійти
-      </Button>
-    </form>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Пароль</Label>
+            <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+              Забули пароль?
+            </Link>
+          </div>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+
+        <Button className="w-full" type="submit" disabled={isLoading}>
+          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Увійти
+        </Button>
+      </form>
+    </div>
   );
 }
