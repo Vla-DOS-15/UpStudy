@@ -5,6 +5,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using UpStudy.Dtos;
 using UpStudy.Interfaces;
 using UpStudy.Models;
@@ -140,21 +141,70 @@ public class AuthService : IAuthService
     }
 
     // --- GOOGLE LOGIN ---
-    public async Task<AuthResponseDto> GoogleLoginAsync(string googleIdToken)
+    public async Task<AuthResponseDto> GoogleLoginAsync(GoogleLoginDto model)
     {
         try
         {
-            var payload = await GoogleJsonWebSignature.ValidateAsync(googleIdToken);
+            var clientId = _configuration["Google:ClientId"];
+            var clientSecret = _configuration["Google:ClientSecret"];
+            
+            if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+            {
+                return new AuthResponseDto { IsSuccess = false, Message = "Google ClientId або ClientSecret не налаштовано на сервері" };
+            }
+
+            using var httpClient = new HttpClient();
+            var tokenResponse = await httpClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["code"] = model.Code,
+                ["client_id"] = clientId,
+                ["client_secret"] = clientSecret,
+                ["redirect_uri"] = "postmessage",
+                ["grant_type"] = "authorization_code"
+            }));
+
+            if (!tokenResponse.IsSuccessStatusCode)
+            {
+                var error = await tokenResponse.Content.ReadAsStringAsync();
+                return new AuthResponseDto { IsSuccess = false, Message = "Помилка обміну коду Google: " + error };
+            }
+
+            using var jsonDoc = await JsonDocument.ParseAsync(await tokenResponse.Content.ReadAsStreamAsync());
+            if (!jsonDoc.RootElement.TryGetProperty("id_token", out var idTokenElement))
+            {
+                return new AuthResponseDto { IsSuccess = false, Message = "Відсутній id_token у відповіді Google" };
+            }
+
+            var idToken = idTokenElement.GetString();
+            if (string.IsNullOrEmpty(idToken))
+            {
+                return new AuthResponseDto { IsSuccess = false, Message = "Порожній id_token" };
+            }
+
+            var payload = await GoogleJsonWebSignature.ValidateAsync(idToken);
             var user = await _userManager.FindByEmailAsync(payload.Email);
 
-            if (user == null)
+            if (user != null)
             {
+                if (user.PasswordHash != null)
+                {
+                    return new AuthResponseDto { IsSuccess = false, Message = "Дані не сходяться (Ви реєструвались через email та пароль)" };
+                }
+            }
+            else
+            {
+                string emailPrefix = payload.Email.Split('@')[0];
+                string randomChars = GenerateRandomAlphanumeric(6);
+                string username = $"{emailPrefix}{randomChars}";
+
+                string roleToAssign = (model.Role == "Client" || model.Role == "Executor") ? model.Role : "Client";
+
                 user = new AppUser
                 {
                     Email = payload.Email,
-                    UserName = payload.Email,
-                    FirstName = payload.GivenName,
-                    LastName = payload.FamilyName,
+                    UserName = username,
+                    FirstName = payload.GivenName ?? "User",
+                    LastName = payload.FamilyName ?? "",
                     EmailConfirmed = true,
                     SecurityStamp = Guid.NewGuid().ToString()
                 };
@@ -162,7 +212,11 @@ public class AuthService : IAuthService
                 if (!createResult.Succeeded)
                     return new AuthResponseDto { IsSuccess = false, Message = "Не вдалося створити користувача через Google" };
                 
-                // await _userManager.AddToRoleAsync(user, "User");
+                if (!await _roleManager.RoleExistsAsync(roleToAssign))
+                {
+                    await _roleManager.CreateAsync(new IdentityRole(roleToAssign));
+                }
+                await _userManager.AddToRoleAsync(user, roleToAssign);
             }
 
             return await GenerateTokensAndSaveAsync(user);
@@ -171,6 +225,14 @@ public class AuthService : IAuthService
         {
             return new AuthResponseDto { IsSuccess = false, Message = "Google Token Invalid" };
         }
+    }
+
+    private string GenerateRandomAlphanumeric(int length)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        var random = new Random();
+        return new string(Enumerable.Repeat(chars, length)
+            .Select(s => s[random.Next(s.Length)]).ToArray());
     }
 
     // --- ЗМІНА ПАРОЛЯ ---

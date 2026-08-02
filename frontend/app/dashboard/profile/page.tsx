@@ -26,6 +26,7 @@ export default function ProfilePage() {
   const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [telegram, setTelegram] = useState('');
+  const [userName, setUserName] = useState('');
   const [preferredDisciplineIds, setPreferredDisciplineIds] = useState<number[]>([]);
   
   const [directions, setDirections] = useState<any[]>([]);
@@ -36,6 +37,7 @@ export default function ProfilePage() {
       setLastName(user.lastName || '');
       setPhoneNumber(user.phoneNumber || '');
       setTelegram(user.telegram || '');
+      setUserName(user.userName || '');
       if (user.preferredDisciplineIds) {
         setPreferredDisciplineIds(user.preferredDisciplineIds);
       }
@@ -65,12 +67,14 @@ export default function ProfilePage() {
         lastName,
         phoneNumber,
         telegram,
+        userName,
         preferredDisciplineIds
       });
-      updateUser({ firstName, lastName, phoneNumber, telegram, preferredDisciplineIds });
+      updateUser({ firstName, lastName, phoneNumber, telegram, userName, preferredDisciplineIds });
       toast.success('Профіль оновлено');
-    } catch (error) {
-      toast.error('Помилка при оновленні профілю');
+    } catch (error: any) {
+      const msg = error.response?.data?.message || 'Помилка при оновленні профілю';
+      toast.error(msg);
     } finally {
       setIsSaving(false);
     }
@@ -135,7 +139,7 @@ export default function ProfilePage() {
             </div>
             <div className="text-center">
               <h3 className="font-semibold text-lg">{user.firstName} {user.lastName}</h3>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
+              <p className="text-sm text-muted-foreground">@{user.userName}</p>
               <div className="mt-2 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors bg-primary text-primary-foreground">
                 {user.roles?.[0] || 'User'}
               </div>
@@ -164,9 +168,16 @@ export default function ProfilePage() {
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
+                    <Label htmlFor="userName">Юзернейм</Label>
+                    <Input id="userName" value={userName} onChange={e => setUserName(e.target.value)} required />
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input id="email" defaultValue={user.email} disabled className="bg-muted" />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   {isExecutor && (
                     <div className="space-y-2">
                       <Label htmlFor="phoneNumber">Номер телефону</Label>

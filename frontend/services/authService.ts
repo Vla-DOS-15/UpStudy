@@ -13,8 +13,8 @@ export const authService = {
     return response.data;
   },
 
-  async googleLogin(idToken: string) {
-    const response = await api.post<AuthResponse>('/Auth/google-login', { idToken });
+  async googleLogin(code: string, role?: string) {
+    const response = await api.post<AuthResponse>('/Auth/google-login', { code, role });
     return response.data;
   },
   

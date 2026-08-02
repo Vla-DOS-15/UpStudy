@@ -10,6 +10,7 @@ import { jwtDecode } from 'jwt-decode';
 interface AuthContextType {
   user: User | null;
   login: (data: LoginDto) => Promise<void>;
+  googleLogin: (code: string, role?: string) => Promise<void>;
   register: (data: RegisterDto) => Promise<void>;
   logout: () => void;
   updateUser: (updatedFields: Partial<User>) => void;
@@ -39,7 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             email: decoded.email,
             firstName: decoded.given_name || '',
             lastName: decoded.family_name || '',
-            userName: decoded.family_name || '',
+            userName: decoded.unique_name || '',
             roles: decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [],
             isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
             isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
@@ -86,40 +87,54 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = async (data: LoginDto) => {
     try {
       const res = await authService.login(data);
-      if (res.isSuccess) {
-        Cookies.set('accessToken', res.accessToken, { expires: 7 });
-        Cookies.set('refreshToken', res.refreshToken, { expires: 7 });
-        
-        const decoded: any = jwtDecode(res.accessToken);
-            const userRoles = decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [];
-            
-            setUser({
-                id: decoded.nameid,
-                email: decoded.email,
-                firstName: decoded.given_name || 'User',
-                lastName: '',
-                userName: decoded.family_name || '',
-                roles: userRoles,
-                isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
-                isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
-                emailConfirmed: decoded.EmailConfirmed === 'True' || decoded.EmailConfirmed === true,
-            });
-            
-            const isEmailConfirmed = decoded.EmailConfirmed === 'True' || decoded.EmailConfirmed === true;
-
-            if (userRoles.includes('Admin')) {
-                router.push('/admin');
-            } else if (!isEmailConfirmed) {
-                router.push('/verify-email');
-            } else {
-                router.push('/dashboard');
-            }
-      } else {
-        throw new Error(res.message || 'Помилка входу');
-      }
+      handleAuthResponse(res);
     } catch (error: any) {
       console.error(error);
       throw error; 
+    }
+  };
+
+  const googleLogin = async (code: string, role?: string) => {
+    try {
+      const res = await authService.googleLogin(code, role);
+      handleAuthResponse(res);
+    } catch (error: any) {
+      console.error(error);
+      throw error;
+    }
+  };
+
+  const handleAuthResponse = (res: any) => {
+    if (res.isSuccess) {
+      Cookies.set('accessToken', res.accessToken, { expires: 7 });
+      Cookies.set('refreshToken', res.refreshToken, { expires: 7 });
+      
+      const decoded: any = jwtDecode(res.accessToken);
+      const userRoles = decoded.role ? (Array.isArray(decoded.role) ? decoded.role : [decoded.role]) : [];
+      
+      setUser({
+          id: decoded.nameid,
+          email: decoded.email,
+          firstName: decoded.given_name || 'User',
+          lastName: decoded.family_name || '',
+          userName: decoded.unique_name || '',
+          roles: userRoles,
+          isVerified: decoded.IsVerified === 'True' || decoded.IsVerified === true,
+          isVerificationPending: decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true,
+          emailConfirmed: decoded.EmailConfirmed === 'True' || decoded.EmailConfirmed === true,
+      });
+      
+      const isEmailConfirmed = decoded.EmailConfirmed === 'True' || decoded.EmailConfirmed === true;
+
+      if (userRoles.includes('Admin')) {
+          router.push('/admin');
+      } else if (!isEmailConfirmed) {
+          router.push('/verify-email');
+      } else {
+          router.push('/dashboard');
+      }
+    } else {
+      throw new Error(res.message || 'Помилка входу');
     }
   };
 
@@ -145,7 +160,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateUser, isLoading }}>
+    <AuthContext.Provider value={{ user, login, googleLogin, register, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

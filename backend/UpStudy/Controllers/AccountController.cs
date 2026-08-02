@@ -170,6 +170,16 @@ public class AccountController : ControllerBase
         user.AboutMe = model.AboutMe;
         user.PhoneNumber = model.PhoneNumber;
 
+        if (!string.IsNullOrWhiteSpace(model.UserName) && model.UserName != user.UserName)
+        {
+            var existingUser = await _userManager.FindByNameAsync(model.UserName);
+            if (existingUser != null && existingUser.Id != user.Id)
+            {
+                return BadRequest(new { Message = "Цей юзернейм вже зайнятий іншим користувачем." });
+            }
+            user.UserName = model.UserName;
+        }
+
         string? formattedTelegram = model.Telegram;
         if (!string.IsNullOrWhiteSpace(formattedTelegram) && !formattedTelegram.StartsWith("@"))
         {

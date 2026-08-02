@@ -8,6 +8,7 @@ public class UpdateProfileDto
     
     public string? PhoneNumber { get; set; }
     public string? Telegram { get; set; }
+    public string? UserName { get; set; }
     
     // Перелік ID дисциплін, які обрав виконавець
     public List<int> PreferredDisciplineIds { get; set; } = new();
