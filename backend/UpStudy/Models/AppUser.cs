@@ -8,6 +8,7 @@ public class AppUser : IdentityUser
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public DateTime LastActive { get; set; } = DateTime.UtcNow;
+    public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
     
     // Профіль виконавця (необов'язкові поля, заповнюються якщо юзер хоче бути виконавцем)
     public string? AboutMe { get; set; }

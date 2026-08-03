@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { orderService } from '@/services/orderService';
 import api from '@/lib/axios';
+import Link from 'next/link';
 
 interface ProposalsListProps {
     orderId: string;
@@ -71,21 +72,23 @@ export default function ProposalsList({ orderId, onExecutorAccepted }: Proposals
                     <Card key={p.id} className="border bg-muted/30">
                         <CardHeader className="pb-2">
                             <div className="flex justify-between items-start">
-                                <div className="flex items-center gap-3">
+                                <Link href={`/dashboard/users/${p.executorId}`} className="flex items-center gap-3 hover:bg-muted/50 p-2 -m-2 rounded-lg transition-colors cursor-pointer group">
                                     {p.executorAvatar ? (
-                                        <img src={p.executorAvatar} alt={p.executorName} className="w-10 h-10 rounded-full object-cover" />
+                                        <img src={p.executorAvatar} alt={p.executorUserName || p.executorName} className="w-10 h-10 rounded-full object-cover group-hover:ring-2 ring-primary/30 transition-all" />
                                     ) : (
-                                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                                            {p.executorName.charAt(0)}
+                                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold group-hover:ring-2 ring-primary/40 transition-all">
+                                            {(p.executorUserName || p.executorName).charAt(0).toUpperCase()}
                                         </div>
                                     )}
                                     <div>
-                                        <h4 className="font-semibold">{p.executorName}</h4>
+                                        <h4 className="font-semibold group-hover:text-primary transition-colors">
+                                            {p.executorUserName ? `@${p.executorUserName}` : p.executorName}
+                                        </h4>
                                         <p className="text-xs text-muted-foreground">
-                                            Рейтинг: {p.executorRating} | Виконано: {p.executorCompletedProjects}
+                                            Рейтинг: {p.executorRating.toFixed(1)} | Виконано: {p.executorCompletedProjects}
                                         </p>
                                     </div>
-                                </div>
+                                </Link>
                                 <div className="text-right">
                                     <p className="font-bold text-lg">{p.price} ₴</p>
                                 </div>

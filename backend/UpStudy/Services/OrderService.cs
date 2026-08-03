@@ -148,6 +148,7 @@ public async Task<List<OrderProposalDto>> GetProposalsForOrderAsync(Guid orderId
         ExecutorName = p.Executor != null 
             ? $"{p.Executor.FirstName} {p.Executor.LastName}" 
             : "Невідомий",
+        ExecutorUserName = p.Executor?.UserName,
         
         // --- Нові поля ---
         ExecutorRating = p.Executor?.Rating ?? 0, 

@@ -8,6 +8,7 @@ public class OrderProposalDto
     public required string Status { get; set; }
     public required string ExecutorId { get; set; }
     public required string ExecutorName { get; set; }
+    public string? ExecutorUserName { get; set; }
     
     public string? ExecutorAvatar { get; set; }       // URL аватара
     public double ExecutorRating { get; set; }        // Середній рейтинг (наприклад, 4.9)

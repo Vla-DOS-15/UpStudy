@@ -49,7 +49,7 @@ public class AdminService : IAdminService
                 Id = u.Id,
                 Email = u.Email ?? string.Empty,
                 FullName = $"{u.FirstName} {u.LastName}",
-                RegisteredAt = DateTime.UtcNow // Якщо є таке поле
+                RegisteredAt = u.RegisteredAt
             })
             .ToListAsync();
     }
@@ -131,7 +131,8 @@ public class AdminService : IAdminService
             
                 IsVerified = u.IsVerified,
                 IsVerificationPending = u.IsVerificationPending,
-                IsBlocked = u.LockoutEnd != null && u.LockoutEnd > DateTimeOffset.UtcNow
+                IsBlocked = u.LockoutEnd != null && u.LockoutEnd > DateTimeOffset.UtcNow,
+                RegisteredAt = u.RegisteredAt
             })
             .ToListAsync();
     }

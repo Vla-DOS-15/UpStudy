@@ -124,6 +124,7 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
               id: p.id,
               userId: p.executorId,
               name: p.executorName,
+              userName: p.executorUserName,
               avatar: p.executorAvatar,
               rating: p.executorRating || 0,
               completedProjects: p.executorCompletedProjects || 0,
@@ -294,34 +295,38 @@ export default function OrderListItem({ orderPreview, userRole }: OrderListItemP
   // ОНОВЛЕНИЙ Рендер картки консультанта (горизонтальний вигляд)
   const renderConsultantCard = (consultant: any) => (
     <Card key={consultant.id} className="group overflow-hidden border hover:shadow-md transition-shadow p-4">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-4">
 
-        {/* Аватар */}
-        <Avatar className="h-12 w-12 border-2 border-primary/10">
-          <AvatarImage src={consultant.avatar} />
-          <AvatarFallback className="bg-primary/10 text-primary font-bold">
-            {consultant.name?.[0] || 'U'}
-          </AvatarFallback>
-        </Avatar>
+        <Link href={`/dashboard/users/${consultant.userId}`} className="flex items-center gap-4 flex-1 min-w-0 hover:bg-muted/50 p-2 -m-2 rounded-lg transition-colors cursor-pointer group/link">
+          {/* Аватар */}
+          <Avatar className="h-12 w-12 border-2 border-primary/10 group-hover/link:border-primary/40 transition-colors">
+            <AvatarImage src={consultant.avatar} />
+            <AvatarFallback className="bg-primary/10 text-primary font-bold group-hover/link:bg-primary/20 transition-colors">
+              {(consultant.userName || consultant.name)?.[0]?.toUpperCase() || 'U'}
+            </AvatarFallback>
+          </Avatar>
 
-        {/* Інфо про виконавця (Центр) */}
-        <div className="flex-1 min-w-0 flex flex-col justify-center">
-          <div className="flex items-center gap-2">
-            <h4 className="font-semibold text-sm truncate text-foreground">{consultant.name}</h4>
-            {consultant.isVerified && (
-              <CheckCircle className="w-4 h-4 text-green-600" />
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-              <span className="font-medium text-foreground">{consultant.rating.toFixed(1)}</span>
+          {/* Інфо про виконавця (Центр) */}
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <div className="flex items-center gap-2">
+              <h4 className="font-semibold text-sm truncate text-foreground group-hover/link:text-primary transition-colors">
+                {consultant.userName ? `@${consultant.userName}` : consultant.name}
+              </h4>
+              {consultant.isVerified && (
+                <CheckCircle className="w-4 h-4 text-green-600" />
+              )}
             </div>
-            <span className="text-muted-foreground/50">•</span>
-            <div>{consultant.completedProjects} робіт</div>
+
+            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                <span className="font-medium text-foreground">{consultant.rating.toFixed(1)}</span>
+              </div>
+              <span className="text-muted-foreground/50">•</span>
+              <div>{consultant.completedProjects} робіт</div>
+            </div>
           </div>
-        </div>
+        </Link>
 
         {/* Права частина: Ціна + Кнопка (тільки іконка) */}
         <div className="flex items-center gap-4">

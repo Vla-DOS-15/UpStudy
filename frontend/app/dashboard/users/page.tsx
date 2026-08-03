@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { consultantService } from '@/services/consultantService';
+import { userService } from '@/services/userService';
 import { ConsultantPreviewDto } from '@/types';
 import { Star, CheckCircle, Briefcase } from 'lucide-react';
 
@@ -15,7 +16,7 @@ export default function ConsultantsPage() {
   useEffect(() => {
     const fetchConsultants = async () => {
       try {
-        const data = await consultantService.getConsultants();
+        const data = await userService.getUsers();
         setConsultants(data);
       } catch (error) {
         console.error('Помилка завантаження рейтингу авторів', error);
@@ -47,7 +48,8 @@ export default function ConsultantsPage() {
       ) : (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {consultants.map((consultant) => (
-            <Card key={consultant.id} className="group overflow-hidden flex flex-col transition-all hover:shadow-md border-border/50">
+            <Link href={`/dashboard/users/${consultant.id}`} key={consultant.id}>
+              <Card className="group h-full overflow-hidden flex flex-col transition-all hover:shadow-md border-border/50">
               <CardHeader className="p-4 pb-2">
                 <div className="flex flex-col items-center text-center space-y-3">
                   <Avatar className="h-16 w-16 border-2 border-background shadow-sm">
@@ -102,6 +104,7 @@ export default function ConsultantsPage() {
                 </div>
               </CardContent>
             </Card>
+            </Link>
           ))}
         </div>
       )}
