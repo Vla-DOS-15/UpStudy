@@ -76,7 +76,9 @@ export default function UserProfilePage() {
                 <h1 className="text-2xl font-bold text-foreground flex items-center justify-center sm:justify-start gap-2">
                   {profile.firstName} {profile.lastName}
                   {profile.isVerified && (
-                    <ShieldCheck className="w-5 h-5 text-green-600" title="Верифікований користувач" />
+                    <span title="Верифікований користувач">
+                      <ShieldCheck className="w-5 h-5 text-green-600" />
+                    </span>
                   )}
                 </h1>
                 <p className="text-primary font-medium">
