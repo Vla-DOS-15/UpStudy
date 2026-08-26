@@ -12,6 +12,7 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
     public DbSet<WorkType> WorkTypes { get; set; }
     public DbSet<Discipline> Disciplines { get; set; }
     public DbSet<Direction> Directions { get; set; }
+    public DbSet<University> Universities { get; set; }
     public DbSet<Chat> Chats { get; set; }
     public DbSet<ChatMessage> ChatMessages { get; set; }
     public DbSet<ReadyWork> ReadyWorks { get; set; }
@@ -20,6 +21,9 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
     public DbSet<ChatAttachment> ChatAttachments { get; set; }
     public DbSet<DirectPaymentRequest> DirectPaymentRequests { get; set; }
     public DbSet<OrderView> OrderViews { get; set; }
+    
+    public DbSet<UserEducation> Educations { get; set; }
+    public DbSet<UserCertificate> Certificates { get; set; }
     
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
     
@@ -150,5 +154,16 @@ public class ApplicationDbContext : IdentityDbContext<AppUser>
         builder.Entity<Order>().Property(o => o.Price).HasPrecision(18, 2);
         builder.Entity<OrderProposal>().Property(p => p.Price).HasPrecision(18, 2);
         builder.Entity<ReadyWork>().Property(w => w.Price).HasPrecision(18, 2);
+        builder.Entity<AppUser>()
+            .HasMany(u => u.Educations)
+            .WithOne(e => e.AppUser)
+            .HasForeignKey(e => e.AppUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<AppUser>()
+            .HasMany(u => u.Certificates)
+            .WithOne(c => c.AppUser)
+            .HasForeignKey(c => c.AppUserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

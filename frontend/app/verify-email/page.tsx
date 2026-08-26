@@ -51,7 +51,7 @@ export default function VerifyEmailPage() {
         updateUser({ emailConfirmed: true });
         
         if (user.roles?.includes('Executor')) {
-           router.push('/dashboard/verification');
+           router.push('/setup-profile');
         } else {
            router.push('/dashboard');
         }

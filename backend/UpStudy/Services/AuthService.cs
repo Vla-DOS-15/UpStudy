@@ -54,14 +54,8 @@ public class AuthService : IAuthService
         if (userNameExists != null)
             return new AuthResponseDto { IsSuccess = false, Message = "Цей юзернейм вже зайнятий" };
 
-        // 3. Валідація для виконавця (ваш код)
-        if (model.Role == "Executor")
-        {
-            if (string.IsNullOrWhiteSpace(model.FirstName) || string.IsNullOrWhiteSpace(model.LastName))
-                return new AuthResponseDto { IsSuccess = false, Message = "Ім'я та прізвище обов'язкові для виконавця" };
-            if (string.IsNullOrWhiteSpace(model.PhoneNumber))
-                return new AuthResponseDto { IsSuccess = false, Message = "Номер телефону обов'язковий для виконавця" };
-        }
+        // 3. Валідація для виконавця (тепер ці поля заповнюються в майстрі, тому тут не обов'язкові)
+        // Раніше тут була перевірка на FirstName, LastName, PhoneNumber
 
         string? formattedTelegram = model.Telegram;
         if (!string.IsNullOrWhiteSpace(formattedTelegram) && !formattedTelegram.StartsWith("@"))

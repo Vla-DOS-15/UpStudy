@@ -22,13 +22,9 @@ export function RegisterForm({ onSuccess, role, setRole }: RegisterFormProps) {
 
   const [formData, setFormData] = useState({
     userName: '',
-    firstName: '',
-    lastName: '',
     email: '',
     password: '',
-    confirmPassword: '',
-    phoneNumber: '',
-    telegram: ''
+    confirmPassword: ''
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,10 +46,6 @@ export function RegisterForm({ onSuccess, role, setRole }: RegisterFormProps) {
         userName: formData.userName,
         email: formData.email,
         password: formData.password,
-        firstName: role === 'Executor' ? formData.firstName : undefined,
-        lastName: role === 'Executor' ? formData.lastName : undefined,
-        phoneNumber: role === 'Executor' ? formData.phoneNumber : undefined,
-        telegram: role === 'Executor' ? formData.telegram : undefined,
       };
 
       // Якщо тут буде помилка, AuthContext викине exception і ми підемо в catch
@@ -63,7 +55,7 @@ export function RegisterForm({ onSuccess, role, setRole }: RegisterFormProps) {
       if (onSuccess) onSuccess();
 
       if (role === 'Executor') {
-        router.push('/dashboard/verification');
+        router.push('/dashboard/setup-profile');
       } else {
         router.push('/dashboard');
       }
@@ -105,30 +97,7 @@ export function RegisterForm({ onSuccess, role, setRole }: RegisterFormProps) {
           <Input id="userName" placeholder="vlad_dev" value={formData.userName} onChange={handleChange} required />
         </div>
 
-        {role === 'Executor' && (
-          <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">Ім'я</Label>
-                <Input id="firstName" placeholder="Іван" value={formData.firstName} onChange={handleChange} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Прізвище</Label>
-                <Input id="lastName" placeholder="Петренко" value={formData.lastName} onChange={handleChange} required />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="phoneNumber">Номер телефону</Label>
-                <Input id="phoneNumber" placeholder="+380..." value={formData.phoneNumber} onChange={handleChange} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="telegram">Telegram (опціонально)</Label>
-                <Input id="telegram" placeholder="@vlad_dev" value={formData.telegram} onChange={handleChange} />
-              </div>
-            </div>
-          </div>
-        )}
+
 
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>

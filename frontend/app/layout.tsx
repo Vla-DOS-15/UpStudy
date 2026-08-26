@@ -23,7 +23,7 @@ export default function RootLayout({
     <html lang="uk" suppressHydrationWarning>
       <body
         className={cn(
-          "min-h-screen bg-background font-sans antialiased", // Це забезпечує правильний фон для темної теми
+          "min-h-screen bg-background font-sans antialiased",
           inter.className
         )}
       >

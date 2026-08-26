@@ -15,8 +15,14 @@ public class AppUser : IdentityUser
     
     [StringLength(16)]
     public string? BankCardNumber { get; set; } 
+    public string? CardFullName { get; set; }
     
     public bool IsFop { get; set; } = false;
+    public string? BankFullName { get; set; }
+    public string? BankIpn { get; set; }
+    public string? BankIban { get; set; }
+    
+    public DateTime? DateOfBirth { get; set; }
     
     public string? AvatarS3Key { get; set; }
     
@@ -49,4 +55,8 @@ public class AppUser : IdentityUser
     
     // Предмети, які виконавець обрав для роботи
     public List<Discipline> PreferredDisciplines { get; set; } = new();
+
+    // Дані про освіту та сертифікати
+    public List<UserEducation> Educations { get; set; } = new();
+    public List<UserCertificate> Certificates { get; set; } = new();
 }
