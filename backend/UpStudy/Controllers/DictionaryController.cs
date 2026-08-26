@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using UpStudy.Data;
-using UpStudy.Models; // Ваш namespace контексту
+using UpStudy.Models;
+using UpStudy.Services;
 
 namespace UpStudy.Controllers;
 
@@ -10,10 +11,12 @@ namespace UpStudy.Controllers;
 public class DictionaryController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IDictionaryService _dictionaryService;
 
-    public DictionaryController(ApplicationDbContext context)
+    public DictionaryController(ApplicationDbContext context, IDictionaryService dictionaryService)
     {
         _context = context;
+        _dictionaryService = dictionaryService;
     }
 
     [HttpGet("disciplines")]
@@ -52,5 +55,12 @@ public class DictionaryController : ControllerBase
             .ToListAsync();
             
         return Ok(result);
+    }
+
+    [HttpGet("universities")]
+    public async Task<IActionResult> GetUniversities([FromQuery] string query = "")
+    {
+        var universities = await _dictionaryService.SearchUniversitiesAsync(query);
+        return Ok(universities);
     }
 }

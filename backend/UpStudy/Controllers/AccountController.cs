@@ -270,4 +270,133 @@ public class AccountController : ControllerBase
 
         return Ok(result);
     }
+
+    [HttpPost("upload-document")]
+    public async Task<IActionResult> UploadDocument(IFormFile file)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var allowedTypes = new[] { "image/jpeg", "image/png", "image/webp", "application/pdf" };
+        if (!allowedTypes.Contains(file.ContentType))
+            return BadRequest(new { Message = "Дозволені тільки зображення та PDF (JPEG, PNG, WEBP, PDF)" });
+
+        if (file.Length > 10 * 1024 * 1024)
+            return BadRequest(new { Message = "Максимальний розмір файлу 10MB" });
+
+        try
+        {
+            var key = await _r2Service.UploadFileAsync(file, "verification-docs");
+            return Ok(new { s3Key = key });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Помилка завантаження: {ex.Message}");
+        }
+    }
+
+    [HttpPost("setup-profile")]
+    public async Task<IActionResult> SetupProfile([FromBody] SetupProfileDto model)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.Users
+            .Include(u => u.PreferredDisciplines)
+            .Include(u => u.Educations)
+            .Include(u => u.Certificates)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+            
+        if (user == null) return NotFound();
+
+        // 1. Оновлення основної інформації
+        user.FirstName = model.FirstName;
+        user.LastName = model.LastName;
+        user.PhoneNumber = model.PhoneNumber;
+
+        if (model.DateOfBirth.HasValue)
+        {
+            user.DateOfBirth = DateTime.SpecifyKind(model.DateOfBirth.Value, DateTimeKind.Utc);
+        }
+        else
+        {
+            user.DateOfBirth = null;
+        }
+        
+        string? formattedTelegram = model.Telegram;
+        if (!string.IsNullOrWhiteSpace(formattedTelegram) && !formattedTelegram.StartsWith("@"))
+        {
+            formattedTelegram = "@" + formattedTelegram;
+        }
+        user.Telegram = formattedTelegram;
+
+        if (!string.IsNullOrWhiteSpace(model.UserName) && model.UserName != user.UserName)
+        {
+            var existingUser = await _userManager.FindByNameAsync(model.UserName);
+            if (existingUser != null && existingUser.Id != user.Id)
+            {
+                return BadRequest(new { Message = "Цей юзернейм вже зайнятий іншим користувачем." });
+            }
+            user.UserName = model.UserName;
+        }
+
+        // 2. Предмети
+        var selectedDisciplines = await _context.Disciplines
+            .Where(d => model.PreferredDisciplineIds.Contains(d.Id))
+            .ToListAsync();
+        user.PreferredDisciplines.Clear();
+        user.PreferredDisciplines.AddRange(selectedDisciplines);
+
+        // 3. Освіта
+        user.Educations.Clear();
+        foreach (var edu in model.Educations)
+        {
+            user.Educations.Add(new UserEducation
+            {
+                UniversityName = edu.UniversityName,
+                IsOtherUniversity = edu.IsOtherUniversity,
+                Degree = edu.Degree,
+                StartYear = edu.StartYear,
+                IsStudyingNow = edu.IsStudyingNow,
+                EndYear = edu.EndYear,
+                DocumentS3Key = edu.DocumentS3Key
+            });
+        }
+
+        // 4. Сертифікати
+        user.Certificates.Clear();
+        foreach (var cert in model.Certificates)
+        {
+            user.Certificates.Add(new UserCertificate
+            {
+                Name = cert.Name,
+                StartMonth = cert.StartMonth,
+                StartYear = cert.StartYear,
+                EndMonth = cert.EndMonth,
+                EndYear = cert.EndYear,
+                Url = cert.Url
+            });
+        }
+
+        // 5. Реквізити
+        user.CardFullName = model.CardFullName;
+        user.BankCardNumber = model.BankCardNumber;
+        user.BankFullName = model.BankFullName;
+        user.BankIpn = model.BankIpn;
+        user.BankIban = model.BankIban;
+
+        // 6. Верифікація (паспорт зберігаємо)
+        if (!string.IsNullOrEmpty(model.PassportS3Key))
+        {
+            user.PassportS3Key = model.PassportS3Key;
+        }
+        
+        user.IsVerificationPending = true;
+        user.IsVerified = false;
+
+        await _userManager.UpdateAsync(user);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { Message = "Профіль налаштовано. Очікуйте підтвердження адміністратора." });
+    }
 }

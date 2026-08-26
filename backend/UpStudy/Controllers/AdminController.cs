@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UpStudy.Dtos.Admin;
 using UpStudy.Interfaces;
+using UpStudy.Services;
 
 namespace UpStudy.Controllers;
 
@@ -13,11 +14,13 @@ public class AdminController : ControllerBase
 {
     private readonly IAdminService _adminService;
     private readonly IOrderService _orderService;
+    private readonly IDictionaryService _dictionaryService;
 
-    public AdminController(IAdminService adminService, IOrderService orderService)
+    public AdminController(IAdminService adminService, IOrderService orderService, IDictionaryService dictionaryService)
     {
         _adminService = adminService;
         _orderService = orderService;
+        _dictionaryService = dictionaryService;
     }
 
     [HttpGet("stats")]
@@ -114,5 +117,49 @@ public class AdminController : ControllerBase
         {
             return BadRequest(new { Error = ex.Message });
         }
+    }
+
+    [HttpGet("universities")]
+    public async Task<IActionResult> GetAllUniversities()
+    {
+        var universities = await _dictionaryService.GetAllUniversitiesAsync();
+        return Ok(universities);
+    }
+
+    [HttpPost("universities")]
+    public async Task<IActionResult> CreateUniversity([FromBody] UpStudy.Models.University university)
+    {
+        var result = await _dictionaryService.CreateUniversityAsync(university);
+        return Ok(result);
+    }
+
+    [HttpPut("universities/{id}")]
+    public async Task<IActionResult> UpdateUniversity(int id, [FromBody] UpStudy.Models.University university)
+    {
+        var result = await _dictionaryService.UpdateUniversityAsync(id, university);
+        if (result == null) return NotFound();
+        return Ok(result);
+    }
+
+    [HttpDelete("universities/{id}")]
+    public async Task<IActionResult> DeleteUniversity(int id)
+    {
+        var success = await _dictionaryService.DeleteUniversityAsync(id);
+        if (!success) return NotFound();
+        return NoContent();
+    }
+
+    [HttpPost("universities/bulk-delete")]
+    public async Task<IActionResult> BulkDeleteUniversities([FromBody] List<int> ids)
+    {
+        await _dictionaryService.BulkDeleteUniversitiesAsync(ids);
+        return NoContent();
+    }
+
+    [HttpPost("universities/populate")]
+    public async Task<IActionResult> PopulateUniversities([FromBody] List<UpStudy.Models.University> universities)
+    {
+        var addedCount = await _dictionaryService.PopulateUniversitiesAsync(universities);
+        return Ok(new { Message = $"Успішно додано {addedCount} нових університетів." });
     }
 }

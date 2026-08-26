@@ -219,12 +219,11 @@ export default function ProfilePage() {
                                 {dir.disciplines.map((disc: any) => (
                                   <label
                                     key={disc.id}
-                                    className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                                    className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
                                   >
                                     <Checkbox
                                       checked={preferredDisciplineIds.includes(disc.id)}
                                       onCheckedChange={() => toggleDiscipline(disc.id)}
-                                      className="mt-1"
                                     />
                                     <span className="text-sm leading-none flex-1 peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                                       {disc.name}

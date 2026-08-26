@@ -9,7 +9,8 @@ import {
   ShieldAlert, 
   LayoutDashboard, 
   LogOut,
-  Banknote
+  Banknote,
+  GraduationCap
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ export const adminLinks = [
   { href: '/admin/users', label: 'Користувачі', icon: Users },
   { href: '/admin/orders', label: 'Замовлення', icon: FileCheck }, // Додамо на майбутнє
   { href: '/admin/payments', label: 'Платежі', icon: Banknote },
+  { href: '/admin/universities', label: 'Університети', icon: GraduationCap },
 ];
 
 export function AdminSidebar() {

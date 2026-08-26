@@ -53,15 +53,24 @@ export function proxy(request: NextRequest) {
       const isClient = roles.includes('Client');
 
       if (isExecutor) {
-        if (!isVerified && protectedExecutorRoutes.some(route => pathname.startsWith(route))) {
-          return NextResponse.redirect(new URL('/dashboard/verification', request.url));
-        }
-        if (isVerified && pathname === '/dashboard/verification') {
-          return NextResponse.redirect(new URL('/dashboard', request.url));
+        const isVerificationPending = decoded.IsVerificationPending === 'True' || decoded.IsVerificationPending === true;
+
+        if (!isVerified) {
+          // Якщо не верифікований:
+          if (isVerificationPending && pathname !== '/dashboard/verification') {
+            return NextResponse.redirect(new URL('/dashboard/verification', request.url));
+          } else if (!isVerificationPending && pathname !== '/setup-profile') {
+            return NextResponse.redirect(new URL('/setup-profile', request.url));
+          }
+        } else {
+          // Якщо верифікований і зайшов на сторінки очікування/реєстрації
+          if (pathname === '/dashboard/verification' || pathname === '/setup-profile') {
+            return NextResponse.redirect(new URL('/dashboard', request.url));
+          }
         }
       }
       
-      if (isClient && pathname === '/dashboard/verification') {
+      if (isClient && (pathname === '/dashboard/verification' || pathname === '/setup-profile')) {
          return NextResponse.redirect(new URL('/dashboard', request.url));
       }
 
@@ -76,5 +85,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*'],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/setup-profile'],
 };

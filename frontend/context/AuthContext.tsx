@@ -78,8 +78,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!isLoading && user) {
       const isProtected = pathname.startsWith('/dashboard');
-      if (isProtected && !user.emailConfirmed && !user.roles?.includes('Admin')) {
-        router.push('/verify-email');
+      if (isProtected && !user.roles?.includes('Admin')) {
+        if (!user.emailConfirmed) {
+          router.push('/verify-email');
+        } else if (user.roles?.includes('Executor') && !user.isVerified) {
+          if (!user.isVerificationPending && pathname !== '/setup-profile') {
+            router.push('/setup-profile');
+          } else if (user.isVerificationPending && pathname !== '/dashboard/verification') {
+            router.push('/dashboard/verification');
+          }
+        }
       }
     }
   }, [isLoading, user, pathname, router]);
@@ -130,6 +138,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           router.push('/admin');
       } else if (!isEmailConfirmed) {
           router.push('/verify-email');
+      } else if (userRoles.includes('Executor') && !decoded.IsVerified && !decoded.IsVerificationPending) {
+          router.push('/setup-profile');
       } else {
           router.push('/dashboard');
       }

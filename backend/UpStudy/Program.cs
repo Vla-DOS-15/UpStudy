@@ -87,6 +87,7 @@ builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IDictionaryService, DictionaryService>();
 builder.Services.AddSignalR();
 
 
